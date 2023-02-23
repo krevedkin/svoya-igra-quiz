@@ -10,6 +10,7 @@ class Message:
     is_bot: bool | None = None
     date: datetime | int | None = None
     text: str | None = None
+    type_: str = "text"
 
     def __post_init__(self):
         if self.date:

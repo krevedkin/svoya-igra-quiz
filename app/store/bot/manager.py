@@ -1,5 +1,6 @@
 import typing
 from logging import getLogger
+from pprint import pprint
 
 from app.store.telegram_api.dataclasses import UpdateObject, Message
 

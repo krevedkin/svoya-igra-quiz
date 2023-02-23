@@ -1,0 +1,16 @@
+user_token: OTY3NmVjYWYtZTJhNC00NzNhLTgwM2YtZGY3OTBkYTM3YWFhXzMyNjY=
+
+session:
+  key: CaY5iCkYtN7DqXdiYK1BvmGrQuaSA4Tl4bEk9my0jc0=
+admin:
+  email: admin@admin.com
+  password: admin
+database:
+  host: 0.0.0.0
+  port: 5432
+  user: kts_user
+  password: kts_pass
+  database: kts
+bot:
+  token: vk1.a.Cq7YGGw-Av1bjWzS5egb5T9e2v_7z-Xlp-Bvv2bloGsFdYdqx1pph-13N-T6ufXdR6G5rRA5wchx1ucPIYctD5Oy3Mll54wILf0sK28kaffZWhnGWMQF4D9vaTy-tfIGjn651rET6J_8_1pyySoyeYGbgC3zL9U0b3n7JoQfVqkETbCzNdEz_yDd_1llKarMcDXmsuMoDiK-FK9Evci40g
+  group_id: 218762204

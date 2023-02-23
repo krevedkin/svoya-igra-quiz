@@ -6,6 +6,7 @@ from app.store import Store
 
 
 class Poller:
+
     def __init__(self, store: Store):
         self.store = store
         self.is_running = False
@@ -20,6 +21,9 @@ class Poller:
         await self.poll_task
 
     async def poll(self):
+
         while self.is_running:
-            updates = await self.store.vk_api.poll()
+            print("начал поллинг!")
+            # updates = await self.store.vk_api.poll()
+            updates = await self.store.tg_api.poll()
             await self.store.bots_manager.handle_updates(updates)

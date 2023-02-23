@@ -2,6 +2,7 @@ import typing
 from logging import getLogger
 from pprint import pprint
 
+from app.store.bot.bot import Bot
 from app.store.telegram_api.dataclasses import UpdateObject, Message
 
 if typing.TYPE_CHECKING:
@@ -11,15 +12,21 @@ if typing.TYPE_CHECKING:
 class BotManager:
     def __init__(self, app: "Application"):
         self.app = app
-        self.bot = None
+        self.bot = Bot(app)
         self.logger = getLogger("handler")
 
     async def handle_updates(self, updates: list[UpdateObject]):
         if updates:
             for update in updates:
-                await self.app.store.tg_api.send_message(
-                    Message(
-                        chat_id=update.message.chat_id,
-                        text="Привет!",
-                    )
-                )
+                self.bot.update = update
+                match update.message.type_:
+                    case 'bot_command':
+                        await self.bot.command_handler()
+                    case 'text':
+                        await self.bot.message_handler()
+    # for update in updates:
+    #     match update.message.type_:
+    #         case "text":
+    #             await self.message_handler(update)
+    #         case "bot_command":
+    #             await self.command_handler(update)

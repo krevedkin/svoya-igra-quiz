@@ -42,31 +42,41 @@ class TelegramApiAccessor(BaseAccessor):
             res = await response.json()
             return res
 
+    @staticmethod
+    async def _create_update_object(updates: dict) -> UpdateObject:
+        message = Message(
+            message_id=updates["message"]["message_id"],
+            chat_id=updates["message"]["chat"]["id"],
+            username=updates["message"]["from"]["username"],
+            is_bot=updates["message"]["from"]["username"],
+            date=updates["message"]["date"],
+        )
+
+        if "entities" in updates["message"]:
+            message.type_ = updates["message"]["entities"][0]["type"]
+        if "text" in updates["message"]:
+            message.text = updates["message"]["text"]
+        return UpdateObject(update_id=updates["update_id"], message=message)
+
     async def poll(self) -> list[UpdateObject]:
         async with self.session.get(
             self.api_path + "/getUpdates",
-            data={"timeout": 5, "offset": self.last_update + 1},
+            data={
+                "timeout": 5,
+                "offset": self.last_update + 1,
+            },
         ) as response:
             raw_response = await response.json()
             updates = []
+
             if raw_response["result"]:
                 for update in raw_response["result"]:
-                    message = Message(
-                        message_id=update["message"]["message_id"],
-                        chat_id=update["message"]["chat"]["id"],
-                        username=update["message"]["chat"]["username"],
-                        is_bot=update["message"]["from"]["is_bot"],
-                        date=update["message"]["date"],
-                        text=update["message"]["text"],
-                    )
-                    if "entities" in update["message"]:
-                        message.type_ = update["message"]["entities"][0]["type"]
-                    updates.append(
-                        UpdateObject(
-                            update_id=update["update_id"],
-                            message=message,
-                        )
-                    )
+                    if "message" in update:
+                        update_object = await self._create_update_object(update)
+                        updates.append(update_object)
+                    else:
+                        self.last_update = update["update_id"]
+
                 self.last_update = updates[-1].update_id
 
             return updates

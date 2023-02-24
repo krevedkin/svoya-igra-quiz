@@ -18,6 +18,13 @@ class Message:
 
 
 @dataclass
+class CallbackQuery:
+    id: str
+    data: str
+
+
+@dataclass
 class UpdateObject:
     update_id: int
     message: Message
+    callback_query: CallbackQuery | None = None

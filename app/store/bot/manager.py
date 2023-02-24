@@ -24,9 +24,5 @@ class BotManager:
                         await self.bot.command_handler()
                     case 'text':
                         await self.bot.message_handler()
-    # for update in updates:
-    #     match update.message.type_:
-    #         case "text":
-    #             await self.message_handler(update)
-    #         case "bot_command":
-    #             await self.command_handler(update)
+                    case 'callback':
+                        await self.bot.callback_query_handler()

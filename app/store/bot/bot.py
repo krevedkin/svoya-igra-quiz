@@ -1,5 +1,6 @@
 import json
 import typing
+from pprint import pprint
 
 from app.store.telegram_api.dataclasses import UpdateObject, Message
 
@@ -34,12 +35,44 @@ class Bot:
         )
 
     async def callback_query_handler(self):
-        await self.app.store.tg_api.send_message(
-            Message(
-                chat_id=self.update.message.chat_id,
-                text="Вы нажали на кнопку!!!"
-            )
-        )
+        if self.update.callback_query:
+            match self.update.callback_query.data:
+                case "q11":
+                    await self.app.store.tg_api.send_message(
+                        Message(chat_id=self.update.message.chat_id,
+                                text=f"{self.update.message.text} за {self.update.callback_query.data}", )
+                    )
+                    await self.app.store.tg_api.delete_message(
+                        message=self.update.message)
+                case "q12":
+                    await self.app.store.tg_api.send_message(
+                        Message(chat_id=self.update.message.chat_id,
+                                text=f"{self.update.message.text} за {self.update.callback_query.data}", )
+                    )
+                    await self.app.store.tg_api.delete_message(
+                        message=self.update.message)
+                case "q13":
+                    await self.app.store.tg_api.send_message(
+                        Message(chat_id=self.update.message.chat_id,
+                                text=f"{self.update.message.text} за {self.update.callback_query.data}", )
+                    )
+                    await self.app.store.tg_api.delete_message(
+                        message=self.update.message)
+                case "q14":
+                    await self.app.store.tg_api.send_message(
+                        Message(chat_id=self.update.message.chat_id,
+                                text=f"{self.update.message.text} за {self.update.callback_query.data}", )
+                    )
+                    await self.app.store.tg_api.delete_message(
+                        message=self.update.message)
+                case "q15":
+                    await self.app.store.tg_api.send_message(
+                        Message(chat_id=self.update.message.chat_id,
+                                text=f"{self.update.message.text} за {self.update.callback_query.data}", )
+                    )
+                    await self.app.store.tg_api.delete_message(
+                        message=self.update.message)
+
     async def start(self):
         await self.app.store.tg_api.send_message(
             Message(
@@ -73,33 +106,31 @@ class Bot:
             )
         )
 
+    def create_markup(self, themes, questions):
+        markup = {}
+        inline_keyboard = []
+        for theme_idx, theme in enumerate(themes):
+            _theme = [{"text": theme, "callback_data": "Dummy"}]
+            inline_keyboard.append(_theme)
+
+            _questions = [
+                {"text": q, "callback_data": f"q{theme_idx + 1}{i + 1}"} for i, q in
+                enumerate(questions)
+            ]
+            inline_keyboard.append(_questions)
+
+        markup["inline_keyboard"] = inline_keyboard
+        return markup
+
     async def show_keyboard(self):
-        markup = json.dumps(
-            {
-                "inline_keyboard": [
-                    [
-                        {"text": "100", "callback_data": "100"},
-                        {"text": "200", "callback_data": "200"},
-                        {"text": "300", "callback_data": "300"},
-                        {"text": "400", "callback_data": "400"},
-                        {"text": "500", "callback_data": "500"},
-                    ]
-                ]
-            },
-        ),
-        themes = ["Животные", "Музыка", "Люди", "Красота", "Живопись"]
+
+        themes = ["Космос", "Наука", "Музыка", "Водопады"]
+        questions = ["100", "200", "300", "400", "500"]
+
         await self.app.store.tg_api.send_message(
             message=Message(
                 chat_id=self.update.message.chat_id,
-                text=f"Игрок выберите тему!",
+                text=f"Игрок выберете вопрос!",
             ),
+            reply_markup=json.dumps(self.create_markup(themes, questions))
         )
-        for theme in themes:
-            await self.app.store.tg_api.send_message(
-                message=Message(
-                    chat_id=self.update.message.chat_id,
-                    text=f"Тема: {theme}",
-                ),
-                reply_markup=markup
-
-            )

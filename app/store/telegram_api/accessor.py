@@ -45,6 +45,17 @@ class TelegramApiAccessor(BaseAccessor):
             # pprint(res)
             return res
 
+    async def delete_message(self, message: Message):
+        data = {
+            "chat_id": message.chat_id,
+            "message_id": message.message_id,
+        }
+        async with self.session.post(
+            self.api_path + "/deleteMessage", data=data
+        ) as response:
+            res = await response.json()
+            return res
+
     @staticmethod
     def _create_message(updates: dict) -> Message:
         message = Message(

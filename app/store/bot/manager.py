@@ -1,9 +1,9 @@
 import typing
 from logging import getLogger
-from pprint import pprint
+from pprint import pformat
 
 from app.store.bot.bot import Bot
-from app.store.telegram_api.dataclasses import UpdateObject, Message
+from app.store.telegram_api.dataclasses import Update, Message
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -15,14 +15,12 @@ class BotManager:
         self.bot = Bot(app)
         self.logger = getLogger("handler")
 
-    async def handle_updates(self, updates: list[UpdateObject]):
-        if updates:
-            for update in updates:
-                self.bot.update = update
-                match update.message.type_:
-                    case 'bot_command':
-                        await self.bot.command_handler()
-                    case 'text':
-                        await self.bot.message_handler()
-                    case 'callback':
-                        await self.bot.callback_query_handler()
+    async def handle_updates(self, updates: list[Update]):
+        for update in updates:
+            self.logger.info(pformat(update))
+            self.logger.info("---------------------------------------")
+            self.bot.update = update
+            if update.callback_query:
+                await self.bot.callback_query_handler()
+            elif update.message and update.message.entities:
+                await self.bot.command_handler()

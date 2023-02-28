@@ -1,11 +1,17 @@
+import json
 import typing
-from pprint import pprint
 
 from aiohttp import ClientSession, TCPConnector
 
 from app.base.base_accessor import BaseAccessor
-from app.store.telegram_api.dataclasses import UpdateObject, Message, CallbackQuery
+
+from app.store.telegram_api.dataclasses import (
+    Update,
+    ChatMemberAdministrator,
+    Message,
+)
 from app.store.telegram_api.poller import Poller
+from app.store.telegram_api.update_parser import RequestResponseParser
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -20,6 +26,7 @@ class TelegramApiAccessor(BaseAccessor):
         self.poller: Poller | None = None
         self.last_update: int = 0
         self.api_path = URL + self.app.config.bot.token
+        self.parser = RequestResponseParser()
 
     async def connect(self, app: "Application"):
         self.session = ClientSession(connector=TCPConnector(ssl=False))
@@ -31,10 +38,11 @@ class TelegramApiAccessor(BaseAccessor):
         self.logger.info("stop polling")
         await self.session.close()
 
-    async def send_message(self, message: Message, **kwargs):
+    async def send_message(self, chat_id: int, text: str, **kwargs):
+        """Метод отправки сообщения"""
         data = {
-            "chat_id": message.chat_id,
-            "text": message.text,
+            "chat_id": chat_id,
+            "text": text,
         }
         if kwargs:
             data.update(kwargs)
@@ -42,12 +50,12 @@ class TelegramApiAccessor(BaseAccessor):
             self.api_path + "/sendMessage", data=data
         ) as response:
             res = await response.json()
-            # pprint(res)
             return res
 
     async def delete_message(self, message: Message):
+        """Метод удаления сообщения"""
         data = {
-            "chat_id": message.chat_id,
+            "chat_id": message.chat.id,
             "message_id": message.message_id,
         }
         async with self.session.post(
@@ -56,68 +64,58 @@ class TelegramApiAccessor(BaseAccessor):
             res = await response.json()
             return res
 
-    @staticmethod
-    def _create_message(updates: dict) -> Message:
-        message = Message(
-            message_id=updates["message"]["message_id"],
-            chat_id=updates["message"]["chat"]["id"],
-            username=updates["message"]["from"]["username"],
-            is_bot=updates["message"]["from"]["username"],
-            date=updates["message"]["date"],
-        )
+    async def get_chat_admins(self, chat_id: int) -> list[ChatMemberAdministrator]:
+        """
+        Метод получения списка администраторов чата, по id чата.
+        """
+        data = {"chat_id": chat_id}
+        async with self.session.get(
+            self.api_path + "/getChatAdministrators", data=data
+        ) as response:
+            res = await response.json()
 
-        if "entities" in updates["message"]:
-            message.type_ = updates["message"]["entities"][0]["type"]
-        if "text" in updates["message"]:
-            message.text = updates["message"]["text"]
-        return message
+            return [
+                self.parser.parse_chat_administrator(admin)
+                for admin in res["result"]
+                if not admin["user"]["is_bot"]
+            ]
 
-    def _create_update_object(
-        self, updates: dict, is_callback: bool = False
-    ) -> UpdateObject:
-        if not is_callback:
-            message = self._create_message(updates)
-            return UpdateObject(
-                update_id=updates["update_id"],
-                message=message,
-            )
-        else:
-            message = self._create_message(updates["callback_query"])
-            message.type_ = "callback"
-            callback_query = CallbackQuery(
-                id=updates["callback_query"]["id"],
-                data=updates["callback_query"]["data"],
-            )
-            return UpdateObject(
-                update_id=updates["update_id"],
-                message=message,
-                callback_query=callback_query,
-            )
+    async def answer_callback_query(
+        self, callback_query_id: str, text: str, show_alert: bool = False
+    ):
+        """Метод обработки callback_query для показа уведомлений в чате"""
+        data = {
+            "callback_query_id": callback_query_id,
+            "text": text,
+            "show_alert": show_alert,
+        }
+        async with self.session.post(
+            self.api_path + "/answerCallbackQuery", data=data
+        ) as response:
+            res = await response.json()
+            return res
 
-    async def poll(self) -> list[UpdateObject]:
+    async def poll(self) -> list[Update]:
+        """Метод получения обновлений из telegram."""
         async with self.session.get(
             self.api_path + "/getUpdates",
             data={
-                "timeout": 60,
+                "timeout": 5,
                 "offset": self.last_update + 1,
+                "allowed_updates": json.dumps(
+                    [
+                        "message",
+                        "callback_query",
+                        "poll",
+                        "poll_answer",
+                    ]
+                ),
             },
         ) as response:
             raw_response = await response.json()
-
-            updates = []
-            if raw_response["result"]:
-                for update in raw_response["result"]:
-                    if "message" in update:
-                        update_object = self._create_update_object(update)
-                        updates.append(update_object)
-                    elif "callback_query" in update:
-                        update_object = self._create_update_object(
-                            update, is_callback=True
-                        )
-                        updates.append(update_object)
-                    else:
-                        self.last_update = update["update_id"]
-
+            updates = [
+                self.parser.parse_update(update) for update in raw_response["result"]
+            ]
+            if updates:
                 self.last_update = updates[-1].update_id
-
             return updates

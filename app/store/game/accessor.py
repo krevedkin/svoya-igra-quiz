@@ -277,7 +277,7 @@ class GameAccessor(BaseAccessor):
                     .join(ThemeModel)
                     .filter(ThemeModel.title == theme)
                     .order_by(func.random())
-                    .limit(3)
+                    .limit(5)
                 )
                 result = await session.execute(stmt)
                 for q in result.scalars():
@@ -289,7 +289,7 @@ class GameAccessor(BaseAccessor):
                     game_id=game.id,
                     question_id=q.id,
                     is_answered=False,
-                    cost=100,
+                    cost=q.cost,
                 )
                 for q in questions
             ]

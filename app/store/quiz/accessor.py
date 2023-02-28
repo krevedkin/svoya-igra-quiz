@@ -110,6 +110,26 @@ class QuizAccessor(BaseAccessor):
             title=row.title, id=row.id, answers=answers, theme_id=row.theme_id
         )
 
+    async def get_question_by_id(self, id: int):
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            result = await session.execute(
+                select(QuestionModel)
+                .where(QuestionModel.id == id)
+                .options(selectinload(QuestionModel.answers))
+            )
+            row = result.scalars().first()
+            if not row:
+                return None
+
+            answers = [
+                Answer(title=answer.title, is_correct=answer.is_correct)
+                for answer in row.answers
+            ]
+            return Question(
+                title=row.title, id=row.id, answers=answers, theme_id=row.theme_id
+            )
+
     async def list_questions(
         self, theme_id: Optional[int] = None
     ) -> Optional[list[Question]]:
@@ -145,3 +165,16 @@ class QuizAccessor(BaseAccessor):
                 )
 
             return result
+
+    async def get_answer_by_title(self, title: str) -> Answer | None:
+        async with self.app.database.session() as session:
+            session: AsyncSession
+
+            query = select(AnswerModel).where(AnswerModel.title == title)
+
+            result = await session.execute(query)
+            result = result.scalars().first()
+
+            if not result:
+                return None
+            return Answer(is_correct=result.is_correct, title=result.title)

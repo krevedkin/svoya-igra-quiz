@@ -4,12 +4,10 @@ import typing
 import random
 from logging import getLogger
 from typing import Sequence
-from pprint import pprint
 
 from sqlalchemy.exc import IntegrityError
 
 from app.game.models import Player, GameQuestion
-from app.quiz.models import Answer
 from app.store.telegram_api.dataclasses import Update
 
 if typing.TYPE_CHECKING:
@@ -38,14 +36,10 @@ class Bot:
                 await self.start_game()
             case "/stop_game":
                 await self.stop_game()
-            case "/info_game":
-                await self.info_game()
             case "/stop_game":
                 await self.stop_game()
-            case "/show":
-                await self.show_keyboard()
-            case "/poll":
-                await self.send_poll_to_get_players()
+            # case "/show":
+            #     await self.show_keyboard()
             case "/menu":
                 await self.show_game_menu()
             case "/test":
@@ -63,7 +57,7 @@ class Bot:
         if self.update.callback_query:
             data = self.update.callback_query.data
             match data:
-                # начало игры коллбека с кнопки /start_game
+                # начало игры после команды /start_game
                 case "confirm_game_start":
                     await self.app.store.tg_api.delete_message(
                         self.update.callback_query.message
@@ -85,7 +79,7 @@ class Bot:
                         text="Игра была отменена! Напишите "
                              "/start_game чтобы начать заново!"
                     )
-                # В остальных случаях переходим в обработчик логики игры
+                # В остальных случаях переходим в обработчика логики игры
                 case _:
                     await self.round_handler()
 
@@ -308,7 +302,7 @@ class Bot:
         )
         return first_player
 
-    async def send_question(self, question_id: int) -> list[Answer]:
+    async def send_question(self, question_id: int) -> GameQuestion:
         """
         Метод для отправки сообщения содержащего вопрос.
         Также показывает варианты ответов для игроков,
@@ -325,7 +319,7 @@ class Bot:
             text=f"Варианты ответа:\n"
                  f"{answers}",
         )
-        return question.answers
+        return question
 
     async def send_ready_button(self, delay: int = 0):
         """

@@ -313,12 +313,7 @@ class Bot:
             chat_id=self._get_chat_id(),
             text=question.title
         )
-        answers = "".join([answer.title + "\n" for answer in question.answers])
-        await self.app.store.tg_api.send_message(
-            chat_id=self._get_chat_id(),
-            text=f"Варианты ответа:\n"
-                 f"{answers}",
-        )
+
         return question
 
     async def send_ready_button(self, delay: int = 0):

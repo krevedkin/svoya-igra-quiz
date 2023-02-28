@@ -1,4 +1,4 @@
-from sqlalchemy import select, delete, join, update, func
+from sqlalchemy import select, delete, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.base.base_accessor import BaseAccessor
@@ -183,7 +183,9 @@ class GameAccessor(BaseAccessor):
                 answering_player=result.answering_player,
             )
 
-    async def create_answered_player(self, player_id, round_id) -> AnsweredPlayer:
+    async def create_answered_player(
+        self, player_id: int, round_id: int
+    ) -> AnsweredPlayer:
         answered_player = AnsweredPlayerModel(
             player_id=player_id,
             round_id=round_id,
@@ -217,16 +219,6 @@ class GameAccessor(BaseAccessor):
                 player_id=rows[0].player_id,
             )
 
-    async def create_game_poll(self, game_id: int, poll_id: str) -> GamePoll:
-        poll = GamePollsModel(game_id=game_id, poll_id=poll_id)
-
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            session.add(poll)
-            await session.commit()
-
-        return GamePoll(id=poll.id, game_id=poll.game_id, poll_id=poll.poll_id)
-
     async def _get_game_poll(self, statement) -> GamePoll | None:
         async with self.app.database.session() as session:
             session: AsyncSession
@@ -239,14 +231,6 @@ class GameAccessor(BaseAccessor):
                 poll_id=rows[0].poll_id,
                 game_id=rows[0].game_id,
             )
-
-    async def get_game_poll_by_poll_id(self, poll_id: str) -> GamePoll | None:
-        stmt = select(GamePollsModel).where(GamePollsModel.poll_id == poll_id)
-        return await self._get_game_poll(stmt)
-
-    async def get_game_poll_by_game_id(self, game_id: int) -> GamePoll | None:
-        stmt = select(GamePollsModel).where(GamePollsModel.game_id == game_id)
-        return await self._get_game_poll(stmt)
 
     async def get_game_questions_by_chat_id(self, chat_id) -> list[GameQuestion]:
         async with self.app.database.session() as session:

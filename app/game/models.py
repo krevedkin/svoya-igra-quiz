@@ -1,7 +1,15 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Integer, Column, String, ForeignKey, Boolean, TIMESTAMP
+from sqlalchemy import (
+    Integer,
+    Column,
+    String,
+    ForeignKey,
+    Boolean,
+    TIMESTAMP,
+    BigInteger,
+)
 
 from app.store.database.sqlalchemy_base import db
 
@@ -47,7 +55,6 @@ class GamePoll:
 
 @dataclass
 class GameQuestion:
-    cost: int
     is_answered: bool
     question: str
     theme: str
@@ -58,7 +65,7 @@ class GameModel(db):
     id = Column(Integer, primary_key=True)
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
     is_finished = Column(Boolean, default=False)
-    chat_id = Column(Integer, unique=True)
+    chat_id = Column(BigInteger, unique=True)
 
     def __repr__(self):
         return (

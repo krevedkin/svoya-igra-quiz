@@ -6,11 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.base.base_accessor import BaseAccessor
 from app.quiz.models import (
-    Answer,
     Question,
     Theme,
     ThemeModel,
-    AnswerModel,
     QuestionModel,
 )
 
@@ -51,43 +49,50 @@ class QuizAccessor(BaseAccessor):
 
         return [Theme(id=row.id, title=row.title) for row in result]
 
-    async def create_answers(
-        self, question_id: int, answers: list[Answer]
-    ) -> list[Answer]:
-        answer_models = [
-            AnswerModel(
-                is_correct=answer.is_correct,
-                title=answer.title,
-                question_id=question_id,
-            )
-            for answer in answers
-        ]
+    # async def create_answers(
+    #     self, question_id: int, answers: list[Answer]
+    # ) -> list[Answer]:
+    #     answer_models = [
+    #         AnswerModel(
+    #             is_correct=answer.is_correct,
+    #             title=answer.title,
+    #             question_id=question_id,
+    #         )
+    #         for answer in answers
+    #     ]
 
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            session.add_all(answer_models)
-            await session.commit()
-            for answer in answer_models:
-                await session.refresh(answer)
-        return [
-            Answer(title=model.title, is_correct=model.is_correct)
-            for model in answer_models
-        ]
+    # async with self.app.database.session() as session:
+    #     session: AsyncSession
+    #     session.add_all(answer_models)
+    #     await session.commit()
+    #     for answer in answer_models:
+    #         await session.refresh(answer)
+    # return [
+    #     Answer(title=model.title, is_correct=model.is_correct)
+    #     for model in answer_models
+    # ]
 
     async def create_question(
-        self, title: str, theme_id: int, answers: list[Answer] = None
+        self,
+        title: str,
+        theme_id: int,
+        answer: str,
+        cost: int,
     ) -> Question:
-        # if theme_id is None:
-        #     raise IntegrityError(statement="123", params=None, orig=None)
-        question = QuestionModel(title=title, theme_id=theme_id)
+        question = QuestionModel(
+            title=title, theme_id=theme_id, answer=answer, cost=cost
+        )
         async with self.app.database.session() as session:
             session: AsyncSession
             session.add(question)
             await session.commit()
             await session.refresh(question)
-        answers_ = await self.create_answers(question_id=question.id, answers=answers)
         return Question(
-            id=question.id, title=question.title, theme_id=theme_id, answers=answers_
+            id=question.id,
+            title=question.title,
+            theme_id=theme_id,
+            answer=question.answer,
+            cost=question.cost,
         )
 
     async def get_question_by_title(self, title: str) -> Optional[Question]:
@@ -102,32 +107,34 @@ class QuizAccessor(BaseAccessor):
             if not row:
                 return None
 
-            answers = [
-                Answer(title=answer.title, is_correct=answer.is_correct)
-                for answer in row.answers
-            ]
+            # answers = [
+            #     Answer(title=answer.title, is_correct=answer.is_correct)
+            #     for answer in row.answers
+            # ]
         return Question(
-            title=row.title, id=row.id, answers=answers, theme_id=row.theme_id
+            title=row.title,
+            id=row.id,
+            answer=row.answer,
+            theme_id=row.theme_id,
+            cost=row.cost,
         )
 
     async def get_question_by_id(self, id: int):
         async with self.app.database.session() as session:
             session: AsyncSession
             result = await session.execute(
-                select(QuestionModel)
-                .where(QuestionModel.id == id)
-                .options(selectinload(QuestionModel.answers))
+                select(QuestionModel).where(QuestionModel.id == id)
             )
             row = result.scalars().first()
             if not row:
                 return None
 
-            answers = [
-                Answer(title=answer.title, is_correct=answer.is_correct)
-                for answer in row.answers
-            ]
             return Question(
-                title=row.title, id=row.id, answers=answers, theme_id=row.theme_id
+                title=row.title,
+                id=row.id,
+                answer=row.answer,
+                theme_id=row.theme_id,
+                cost=row.cost,
             )
 
     async def list_questions(
@@ -137,44 +144,37 @@ class QuizAccessor(BaseAccessor):
             session: AsyncSession
             if theme_id:
                 query = await session.execute(
-                    select(QuestionModel)
-                    .where(QuestionModel.theme_id == theme_id)
-                    .options(selectinload(QuestionModel.answers))
+                    select(QuestionModel).where(QuestionModel.theme_id == theme_id)
                 )
             else:
-                query = await session.execute(
-                    select(QuestionModel).options(selectinload(QuestionModel.answers))
-                )
+                query = await session.execute(select(QuestionModel))
             rows = query.scalars().all()
             if not rows:
                 return None
 
             result = []
             for row in rows:
-                answers = [
-                    Answer(title=answer.title, is_correct=answer.is_correct)
-                    for answer in row.answers
-                ]
                 result.append(
                     Question(
                         title=row.title,
                         id=row.id,
-                        answers=answers,
+                        answer=row.answer,
                         theme_id=row.theme_id,
+                        cost=row.cost,
                     )
                 )
 
             return result
 
-    async def get_answer_by_title(self, title: str) -> Answer | None:
-        async with self.app.database.session() as session:
-            session: AsyncSession
-
-            query = select(AnswerModel).where(AnswerModel.title == title)
-
-            result = await session.execute(query)
-            result = result.scalars().first()
-
-            if not result:
-                return None
-            return Answer(is_correct=result.is_correct, title=result.title)
+    # async def get_answer_by_title(self, title: str) -> Answer | None:
+    #     async with self.app.database.session() as session:
+    #         session: AsyncSession
+    #
+    #         query = select(AnswerModel).where(AnswerModel.title == title)
+    #
+    #         result = await session.execute(query)
+    #         result = result.scalars().first()
+    #
+    #         if not result:
+    #             return None
+    #         return Answer(is_correct=result.is_correct, title=result.title)

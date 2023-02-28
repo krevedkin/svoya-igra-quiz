@@ -1,7 +1,6 @@
 from aiohttp.web_exceptions import HTTPConflict, HTTPNotFound
 from aiohttp_apispec import querystring_schema, request_schema, response_schema, docs
 
-from app.quiz.models import Answer
 from app.quiz.schemes import (
     ListQuestionSchema,
     QuestionSchema,
@@ -59,11 +58,11 @@ class QuestionAddView(AuthRequiredMixin, View):
                 text="This question already exist. Provide unique question",
             )
 
-        answers = [Answer(**answer) for answer in self.data["answers"]]
         question = await self.request.app.store.quizzes.create_question(
             title=self.data["title"],
             theme_id=self.data["theme_id"],
-            answers=answers,
+            answers=self.data["answer"],
+            cost=self.data["cost"],
         )
         return json_response(QuestionSchema().dump(question))
 

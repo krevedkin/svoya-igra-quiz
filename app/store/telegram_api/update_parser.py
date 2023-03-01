@@ -9,6 +9,7 @@ from app.store.telegram_api.dataclasses import (
     Update,
     CallbackQuery,
     ChatMemberAdministrator,
+    ChatMember,
 )
 
 
@@ -50,6 +51,17 @@ class RequestResponseParser:
             _user.username = user["username"]
 
         return _user
+
+    def parse_chat_member(self, chat_member: dict) -> ChatMember:
+        user = self.parse_user(chat_member["user"])
+        return ChatMember(
+            status=chat_member["status"],
+            id=user.id,
+            is_bot=user.is_bot,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            username=user.username,
+        )
 
     @staticmethod
     def parse_poll_option(poll_option: dict) -> PollOption:
@@ -126,6 +138,13 @@ class RequestResponseParser:
 
         if "poll" in message:
             _message.poll = self.parse_poll(message["poll"])
+
+        if "new_chat_member" in message:
+            _message.new_chat_member = self.parse_user(message["new_chat_member"])
+
+        if "left_chat_member" in message:
+            _message.left_chat_member = self.parse_user(message["left_chat_member"])
+
         return _message
 
     def parse_callback_query(self, callback_query: dict) -> CallbackQuery:
@@ -149,4 +168,13 @@ class RequestResponseParser:
     def parse_chat_administrator(self, admin: dict):
         return ChatMemberAdministrator(
             status=admin["status"], user=self.parse_user(admin["user"])
+        )
+
+    @staticmethod
+    def parse_get_me(get_me: dict):
+        return User(
+            id=get_me["id"],
+            is_bot=get_me["is_bot"],
+            first_name=get_me["first_name"],
+            username=get_me["username"],
         )

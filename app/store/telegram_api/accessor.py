@@ -1,5 +1,6 @@
 import json
 import typing
+from pprint import pprint
 
 from aiohttp import ClientSession, TCPConnector
 
@@ -9,6 +10,7 @@ from app.store.telegram_api.dataclasses import (
     Update,
     ChatMemberAdministrator,
     Message,
+    User,
 )
 from app.store.telegram_api.poller import Poller
 from app.store.telegram_api.update_parser import RequestResponseParser
@@ -95,6 +97,57 @@ class TelegramApiAccessor(BaseAccessor):
             res = await response.json()
             return res
 
+    async def get_me(self) -> User:
+        async with self.session.get(self.api_path + "/getMe") as response:
+            result = await response.json()
+            user = self.parser.parse_get_me(result["result"])
+            return user
+
+    async def get_chat_member(
+        self,
+        chat_id: int,
+        user_id: int,
+    ):
+        data = {"chat_id": chat_id, "user_id": user_id}
+        async with self.session.post(
+            self.api_path + "/getChatMember", data=data
+        ) as response:
+            res = await response.json()
+            pprint(res)
+            chat_member = self.parser.parse_chat_member(res["result"])
+            pprint(chat_member)
+            return chat_member
+
+    async def promote_or_demote_chat_member(
+        self, chat_id: str, user_id: str, is_promote: bool
+    ):
+        """
+        Метод для повышения или понижения прав пользователя чата
+        """
+        permissions = {
+            "can_send_messages": is_promote,
+            "can_send_audios": is_promote,
+            "can_send_documents": is_promote,
+            "can_send_photos": is_promote,
+            "can_send_video_notes": is_promote,
+            "can_send_voice_notes": is_promote,
+            "can_send_polls": is_promote,
+            "can_send_other_messages": is_promote,
+            "can_add_web_page_previews": is_promote,
+            "can_change_info": is_promote,
+            "can_invite_users": is_promote,
+            "can_pin_messages": is_promote,
+            "can_manage_topics": is_promote,
+        }
+        data: dict = {"chat_id": chat_id, "user_id": user_id}
+        data.update(permissions)
+        async with self.session.post(
+            self.api_path + "/restrictChatMember", data=data
+        ) as response:
+            res = await response.json()
+            pprint(res)
+            return res
+
     async def poll(self) -> list[Update]:
         """Метод получения обновлений из telegram."""
         async with self.session.get(
@@ -108,6 +161,8 @@ class TelegramApiAccessor(BaseAccessor):
                         "callback_query",
                         "poll",
                         "poll_answer",
+                        "chat_member",
+                        "my_chat_member",
                     ]
                 ),
             },

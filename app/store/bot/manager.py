@@ -22,5 +22,19 @@ class BotManager:
             self.bot.update = update
             if update.callback_query:
                 await self.bot.callback_query_handler()
+
             elif update.message and update.message.entities:
                 await self.bot.command_handler()
+
+            elif update.message and update.message.new_chat_member:
+                await self.bot.new_chat_user_handler()
+
+            elif update.message and update.message.left_chat_member:
+                await self.bot.left_chat_user_handler()
+
+            elif update.message:
+                game = await self.app.store.game.get_game_by_chat_id(
+                    update.message.chat.id
+                )
+                if game:
+                    await self.bot.answer_message_handler()

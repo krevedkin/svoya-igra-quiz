@@ -2,12 +2,14 @@ import asyncio
 import json
 import typing
 import random
+from asyncio import Task
 from logging import getLogger
+from pprint import pprint
 from typing import Sequence
 
 from sqlalchemy.exc import IntegrityError
 
-from app.game.models import Player, GameQuestion
+from app.game.models import Player, GameQuestion, Game, Round
 from app.store.telegram_api.dataclasses import Update
 
 if typing.TYPE_CHECKING:
@@ -19,12 +21,14 @@ class Bot:
         self.app = app
         self.update: Update | None = None
         self.logger = getLogger("Bot")
+        self.timer_task: Task | None = None
 
     def parse_command(self) -> str:
         for entity in self.update.message.entities:
             if entity.type == "bot_command":
                 command = self.update.message.text[
-                          entity.offset: entity.offset + entity.length]
+                    entity.offset : entity.offset + entity.length
+                ]
                 return command
 
     async def command_handler(self):
@@ -33,25 +37,154 @@ class Bot:
             case "/start":
                 await self.start()
             case "/start_game":
-                await self.start_game()
+                if not await self.is_bot_admin_of_group():
+                    await self.app.store.tg_api.send_message(
+                        chat_id=self._get_chat_id(),
+                        text="Для начала игры нужно создать группу, добавить туда бота и сделать администратором группы",
+                    )
+                else:
+                    game = await self.start_game()
+                    if game:
+                        await self.send_register_button()
+
             case "/stop_game":
                 await self.stop_game()
-            case "/stop_game":
-                await self.stop_game()
-            # case "/show":
-            #     await self.show_keyboard()
             case "/menu":
                 await self.show_game_menu()
-            case "/test":
-                await self.app.store.game.generate_game_questions(-879727519)
             case _:
                 print("команды не было")
 
-    async def message_handler(self):
+    async def new_chat_user_handler(self):
         await self.app.store.tg_api.send_message(
-            chat_id=self.update.message.chat.id,
-            text="Это просто сообщение"
+            chat_id=self._get_chat_id(),
+            text=f"Привет {self.update.message.new_chat_member.username}",
         )
+        await self.app.store.tg_api.promote_or_demote_chat_member(
+            chat_id=self.update.message.chat.id,
+            user_id=self.update.message.new_chat_member.id,
+            is_promote=False,
+        )
+
+    async def left_chat_user_handler(self):
+        await self.app.store.tg_api.send_message(
+            chat_id=self._get_chat_id(),
+            text=f"Пока {self.update.message.left_chat_member.username}",
+        )
+
+    async def answer_message_handler(self):
+        player = await self.get_player()
+        round_ = await self.app.store.game.get_game_last_round_by_chat_id(
+            chat_id=self._get_chat_id()
+        )
+
+        if round_.is_button_pressed:
+            answer = self.update.message.text
+            is_correct = await self.check_answer(round_, answer)
+
+            if is_correct:
+                await self.app.store.tg_api.send_message(
+                    chat_id=self._get_chat_id(), text="Вы ответили правильно!"
+                )
+                await self.app.store.game.create_answered_player(
+                    round_id=round_.id, player_id=player.id
+                )
+                await self.app.store.game.update_round_button_pressed_by_toggle(
+                    id=round_.id, is_pressed=False
+                )
+
+                await self.app.store.game.update_game_question_as_answered(
+                    game_id=round_.game_id, question_id=round_.current_question
+                )
+
+                await self.change_player_score(True)
+                await self.app.store.game.update_round_winner_by_id(
+                    round_id=round_.id,
+                    player_id=player.id,
+                )
+                await self.show_keyboard(player=player)
+
+            else:
+                await self.app.store.game.create_answered_player(
+                    round_id=round_.id, player_id=player.id
+                )
+                await self.app.store.tg_api.send_message(
+                    chat_id=self._get_chat_id(),
+                    text="Вы ответили неправильно! Снижаем ваши деньги",
+                )
+                await self.app.store.tg_api.send_message(
+                    chat_id=self._get_chat_id(),
+                    text="Остальные игроки приготовьтесь отвечать",
+                )
+
+                await self.app.store.game.update_round_button_pressed_by_toggle(
+                    id=round_.id, is_pressed=False
+                )
+                await self.change_player_score(False)
+                asyncio.create_task(self.send_ready_button(1))
+
+    async def send_register_button(self):
+        """
+        Метод для отправки кнопки получения игроков.
+        """
+        await self.app.store.tg_api.send_message(
+            chat_id=self._get_chat_id(),
+            text="Нажмите на кнопку для того чтобы зарегистрироваться как игрок",
+            reply_markup=self.create_markup(
+                (
+                    (
+                        "Зарегистрироваться",
+                        "register",
+                    ),
+                )
+            ),
+        )
+
+    async def register_players(self):
+        """
+        Метод для получения игроков которые будут играть в игру.
+        """
+        game = await self.app.store.game.get_game_by_chat_id(
+            chat_id=self._get_chat_id()
+        )
+
+        if self.update.callback_query.from_.username:
+            username = self.update.callback_query.from_.username
+        else:
+            username = self.update.callback_query.from_.first_name + str(
+                self.update.callback_query.from_.id
+            )
+        try:
+            await self.app.store.game.create_player(
+                game_id=game.id,
+                nickname=username,
+            )
+            await self.app.store.tg_api.answer_callback_query(
+                callback_query_id=self.update.callback_query.id,
+                show_alert=False,
+                text="Вы зарегистрировались как игрок",
+            )
+            players = await self.get_players()
+            players = "".join([player.nickname + "\n" for player in players])
+
+            await self.app.store.tg_api.send_message(
+                chat_id=self._get_chat_id(),
+                text=f"Зарегистрированы игроки:\n"
+                f"{players} \n"
+                f"Если готовы начать игру нажмите на кнопку",
+                reply_markup=self.create_markup(
+                    (
+                        ("Начать игру", "confirm_game_start"),
+                        ("Отменить игру", "cancel_game_start"),
+                    )
+                ),
+            )
+        except IntegrityError:
+            self.logger.info("Player with this nickname already exists")
+            await self.app.store.tg_api.answer_callback_query(
+                callback_query_id=self.update.callback_query.id,
+                show_alert=True,
+                text="Вы уже зарегистрированы как игрок, ожидайте начала игры",
+            )
 
     async def callback_query_handler(self):
         if self.update.callback_query:
@@ -62,23 +195,29 @@ class Bot:
                     await self.app.store.tg_api.delete_message(
                         self.update.callback_query.message
                     )
+
                     await self.app.store.tg_api.send_message(
                         chat_id=self.update.callback_query.message.chat.id,
-                        text="Игра началась"
+                        text="Игра началась",
                     )
+                    first_player = await self.choose_first_player()
+                    await self.app.store.game.generate_game_questions(
+                        chat_id=self._get_chat_id()
+                    )
+                    await self.show_keyboard(first_player)
                     await self.round_handler()
 
                 # отмена игры
                 case "cancel_game_start":
                     await self.stop_game()
-                    await self.app.store.tg_api.delete_message(
-                        self.update.callback_query.message
-                    )
                     await self.app.store.tg_api.send_message(
                         chat_id=self.update.callback_query.message.chat.id,
                         text="Игра была отменена! Напишите "
-                             "/start_game чтобы начать заново!"
+                        "/start_game чтобы начать заново!",
                     )
+                # регистрация участников игры
+                case "register":
+                    await self.register_players()
                 # В остальных случаях переходим в обработчика логики игры
                 case _:
                     await self.round_handler()
@@ -93,58 +232,37 @@ class Bot:
                     ("Показать счет", "show_score"),
                     ("Закончить игру", "cancel_game_start"),
                 ),
-            )
+            ),
         )
 
     async def start(self):
         """Показывает сообщение при вводе команды /start"""
         await self.app.store.tg_api.send_message(
             chat_id=self.update.message.chat.id,
-            text="Для начала игры создайте группу и добавьте бота туда,"
-                 "После чего введите команду /start_game",
+            text="Для начала игры создайте группу и добавьте бота туда.\n"
+            "Установите для бота права администратора. "
+            "После этого приглашайте в группу других пользователей, "
+            "и тогда "
+            "Бот начнет регистрировать их как участников игры "
+            "После чего введите команду /start_game когда будете "
+            "готовы играть.",
         )
 
-    async def start_game(self) -> None:
+    async def start_game(self) -> bool:
         """
         Создает новую игру, если она уже была создана, игра не создается.
         Создает список игроков состоящих и администраторов чата.
         Отправляет список зарегистрированных игроков с inline кнопками
         для подтверждения запуска игры или отмены
         """
+
         try:
-            game = await self.app.store.game.create_game(
-                self.update.message.chat.id)
+            await self.app.store.game.create_game(self.update.message.chat.id)
             await self.app.store.tg_api.send_message(
                 chat_id=self.update.message.chat.id,
                 text="Ура вы начали игру!!!",
             )
-            players = await self.app.store.tg_api.get_chat_admins(
-                self.update.message.chat.id)
-            players_string = ''
-            for player in players:
-                if player.user.username:
-                    username = player.user.username
-                    players_string += f"{username}\n"
-                else:
-                    username = f"{player.user.first_name}_{player.user.id}"
-                    players_string += f"{username}\n"
-                await self.app.store.game.create_player(
-                    nickname=username,
-                    game_id=game.id
-                )
-
-            await self.app.store.tg_api.send_message(
-                chat_id=self.update.message.chat.id,
-                text=f"Зарегистрированы игроки:"
-                     f"\n{players_string}\n\nЕсли вы хотите играть в "
-                     f"этом составе, нажмите начать или отмена если не хотите.",
-                reply_markup=self.create_markup(
-                    (
-                        ("Начать", "confirm_game_start"),
-                        ("Отмена", "cancel_game_start")
-                    )
-                )
-            )
+            return True
 
         except IntegrityError as e:
             self.app.logger.info(e)
@@ -153,6 +271,7 @@ class Bot:
                 chat_id=self.update.message.chat.id,
                 text="Игра уже запущена, нельзя начать новую, не завершив ее",
             )
+            return False
 
     async def get_players(self) -> list[Player]:
         """Вспомогательный метод для получения текущего списка игроков
@@ -172,28 +291,30 @@ class Bot:
         берется по параметру first_name
         """
         players = await self.get_players()
-        if self.update.callback_query.from_.username:
-            p = [
-                player for player in players
-                if
-                player.nickname == self.update.callback_query.from_.username
-            ]
-            return p[0]
-        else:
-            p = [
-                player for player in players
-                if
-                player.nickname.startswith(
-                    self.update.callback_query.from_.first_name)
-            ]
-            return p[0]
+
+        for player in players:
+            if player.nickname.startswith(self.get_username_of_first_name()):
+                return player
+
+    def get_username_of_first_name(self) -> str:
+        if self.update.callback_query:
+            if self.update.callback_query.from_.username:
+                return self.update.callback_query.from_.username
+            else:
+                return self.update.callback_query.from_.first_name
+
+        elif self.update.message:
+            if self.update.message.from_.username:
+                return self.update.message.from_.username
+            else:
+                return self.update.message.from_.first_name
 
     async def show_score(self):
         """
         Метод для отправки сообщения содержащего текущее состояние игры
         """
         players = await self.get_players()
-        result = ''
+        result = ""
         for player in players:
             score = f"Игрок: {player.nickname} | Счет: {player.score}\n"
             result += score
@@ -219,20 +340,17 @@ class Bot:
             )
 
     @staticmethod
-    def create_markup(
-            data: Sequence[list[str, str] | tuple[str, str]]
-    ) -> str:
+    def create_markup(data: Sequence[list[str, str] | tuple[str, str]]) -> str:
         """
         Вспомогательный метод для создания inline_keyboard_markup
         """
         inline_markup = [
-            [{"text": array[0], "callback_data": array[1]}]
-            for array in data
+            [{"text": array[0], "callback_data": array[1]}] for array in data
         ]
         r = json.dumps({"inline_keyboard": inline_markup})
         return r
 
-    async def create_game_keyboard(self):
+    async def create_game_keyboard(self) -> list[list[dict]]:
         """
         Метод для создания игровой клавиатуры.
         Клавиатура представляет собой сообщение содержащее inline кнопки,
@@ -258,19 +376,33 @@ class Bot:
             self._get_chat_id()
         )
         themes = set([q.theme for q in game_questions])
-        questions = [filter(lambda x: x.theme == theme, game_questions)
-                     for theme in themes]
+        questions = [
+            list(filter(lambda x: x.theme == theme, game_questions)) for theme in themes
+        ]
         result = []
-        for item in questions:
-            costs = []
-            for i in item:
-                theme_button = [{"text": i.theme, "callback_data": "None"}]
-                if theme_button not in result:
-                    result.append(theme_button)
-                costs.append({
-                    "text": str(i.cost), "callback_data": str(i.question),
-                })
-            result.append(costs)
+        costs = []
+        for questions_list in questions:
+            for question in questions_list:
+                if question.theme not in result:
+                    result.append(question.theme)
+
+                costs.append(
+                    {
+                        "text": str(question.cost),
+                        "callback_data": str(question.question_id),
+                    }
+                )
+            result.append(costs[:])
+            costs.clear()
+
+        for i, item in enumerate(result):
+            if isinstance(item, str):
+                result[i] = [
+                    {
+                        "text": item,
+                        "callback_data": "None",
+                    }
+                ]
 
         return result
 
@@ -279,14 +411,12 @@ class Bot:
         Метод отправки сообщения содержащего inline клавиатуру с текущими
         темами и вопросами игрового раунда.
         """
-        inline_keyboard = {
-            "inline_keyboard": await self.create_game_keyboard()
-        }
+        inline_keyboard = {"inline_keyboard": await self.create_game_keyboard()}
 
         await self.app.store.tg_api.send_message(
             chat_id=self._get_chat_id(),
             text=f"Игрок {player.nickname} выберете вопрос!",
-            reply_markup=json.dumps(inline_keyboard)
+            reply_markup=json.dumps(inline_keyboard),
         )
 
     async def choose_first_player(self) -> Player:
@@ -297,22 +427,25 @@ class Bot:
         first_player = random.choice(players)
         await self.app.store.tg_api.send_message(
             text=f"Право первого хода предоставляется игроку "
-                 f"{first_player.nickname}, выбранному случайно!",
-            chat_id=self._get_chat_id()
+            f"{first_player.nickname}, выбранному случайно!",
+            chat_id=self._get_chat_id(),
         )
         return first_player
 
     async def send_question(self, question_id: int) -> GameQuestion:
         """
         Метод для отправки сообщения содержащего вопрос.
-        Также показывает варианты ответов для игроков,
-        чтобы они успели подумать, прежде чем кнопки содержащие ответы появятся.
         """
         question = await self.app.store.quizzes.get_question_by_id(question_id)
         await self.app.store.tg_api.send_message(
-            chat_id=self._get_chat_id(),
-            text=question.title
+            chat_id=self._get_chat_id(), text=question.title
         )
+
+        await self.app.store.tg_api.send_message(
+            chat_id=self._get_chat_id(), text="У вас 10 секунд на размышление!"
+        )
+        asyncio.create_task(self.send_ready_button(1))
+        self.timer_task = asyncio.create_task(self.create_timer(5))
 
         return question
 
@@ -327,22 +460,38 @@ class Bot:
         отправки кнопки.
         """
         try:
-            chat_id = self.update.callback_query.message.chat.id
             await asyncio.sleep(delay)
             await self.app.store.tg_api.send_message(
-                chat_id=chat_id,
+                chat_id=self._get_chat_id(),
                 text="Нажмите на кнопку если вы готовы ответить",
-                reply_markup=self.create_markup(
-                    (
-                        ("Ответить!", "ready_to_answer"),
-                    )
-                )
+                reply_markup=self.create_markup((("Ответить!", "ready_to_answer"),)),
             )
         except Exception as e:
             self.logger.exception(e)
 
+    async def create_new_round(self, question_id: int) -> Round:
+        last_round = await self.app.store.game.get_game_last_round_by_chat_id(
+            chat_id=self._get_chat_id()
+        )
+        game = await self.app.store.game.get_game_by_chat_id(
+            chat_id=self._get_chat_id()
+        )
+        if not last_round:
+            round_ = await self.app.store.game.create_round(
+                count=1, game_id=game.id, current_question=question_id
+            )
+
+        else:
+            round_ = await self.app.store.game.create_round(
+                count=last_round.count + 1,
+                game_id=game.id,
+                current_question=question_id,
+            )
+        return round_
+
     async def round_handler(self):
         """Логика игры"""
+
         data = self.update.callback_query.data
         # Для того чтобы определить, является ли callback_data вопросом
         # пробуем привести его к int
@@ -354,76 +503,37 @@ class Bot:
             # В случае если callback_data удается привести к int
             # задаем пользователю вопрос
             case int():
-                game = await self.app.store.game.get_game_by_chat_id(
-                    self._get_chat_id())
-                last_round = await self.app.store.game.get_game_last_round_by_chat_id(
-                    self._get_chat_id()
+                await self.app.store.tg_api.delete_message(
+                    self.update.callback_query.message
                 )
-                # в случае того, что это первый раунд игры,
-                # создаем новый раунд
-                if not last_round:
-                    await self.app.store.game.create_round(
-                        count=1,
-                        game_id=game.id,
-                        current_question=data,
-                    )
                 await self.send_question(data)
-                # Отправка кнопки "Ответить" с задержкой
-                asyncio.create_task(self.send_ready_button(1))
+                await self.create_new_round(data)
 
             case "ready_to_answer":
                 player_ = await self.get_player()
                 round_ = await self.app.store.game.get_game_last_round_by_chat_id(
                     self._get_chat_id()
                 )
-                await self.app.store.game.update_round_answering_player(
-                    id=round_.id,
-                    answering_player=player_.nickname,
+                await self.app.store.game.update_round_button_pressed_by_toggle(
+                    id=round_.id, is_pressed=True
                 )
-                question = await self.app.store.quizzes.get_question_by_id(
-                    round_.id)
-                answers = [
-                    [answer.title, str(answer.is_correct).lower() + "_answer"]
-                    for answer in question.answers]
-                await self.app.store.tg_api.send_message(
-                    chat_id=self.update.callback_query.message.chat.id,
-                    text=f"Игрок {player_.nickname} выберите вариант ответа",
-                    reply_markup=self.create_markup(
-                        answers
+                is_answered = await self.check_is_player_answered(player_, round_)
+                if not is_answered:
+                    await self.app.store.game.update_round_answering_player(
+                        id=round_.id,
+                        answering_player=player_.id,
                     )
-                )
-            case "true_answer":
-                await self.app.store.tg_api.send_message(
-                    self._get_chat_id(),
-                    text="Вы ответили правильно!!!"
-                )
 
-            case "false_answer":
-                await self.app.store.tg_api.answer_callback_query(
-                    callback_query_id=self.update.callback_query.id,
-                    text="Вы уже отвечали в этом раунде, поэтому больше"
-                         "не можете, дождитесь следующего раунда",
-                )
-                await self.app.store.tg_api.send_message(
-                    self._get_chat_id(),
-                    text="К сожалению ответ неверный! "
-                         "Вы больше не участвуете в этом раунде"
-                )
-                await self.app.store.tg_api.send_message(
-                    self._get_chat_id(),
-                    text="Остальные игроки приготовьтесь отвечать..."
-                )
-                asyncio.create_task(self.send_ready_button(2))
-
-            case _:
-                chat_id = self._get_chat_id()
-                last_round = await self.app.store.game.get_game_last_round_by_chat_id(
-                    chat_id
-                )
-                if not last_round:
-                    await self.app.store.game.generate_game_questions(chat_id)
-                    player = await self.choose_first_player()
-                    await self.show_keyboard(player)
+                    await self.app.store.tg_api.send_message(
+                        chat_id=self._get_chat_id(),
+                        text=f"Игрок {player_.nickname} напишите свой ответ",
+                    )
+                else:
+                    await self.app.store.tg_api.answer_callback_query(
+                        callback_query_id=self.update.callback_query.id,
+                        text="Вы уже отвечали в этом раунде, дождитесь следующего",
+                        show_alert=True,
+                    )
 
     def _get_chat_id(self) -> int:
         """
@@ -434,5 +544,65 @@ class Bot:
         elif self.update.message:
             return self.update.message.chat.id
 
-    async def _check_is_player_answered(self, player):
-        ...
+    async def check_answer(self, round: Round, answer: str) -> bool:
+        question = await self.app.store.quizzes.get_question_by_id(
+            round.current_question
+        )
+        return question.answer.lower() == answer.lower()
+
+    async def is_bot_admin_of_group(self) -> bool:
+        """
+        Метод для проверки является ли бот администратором чата
+        """
+        chat_id = self._get_chat_id()
+        bot = await self.app.store.tg_api.get_me()
+
+        user_member = await self.app.store.tg_api.get_chat_member(
+            chat_id=chat_id,
+            user_id=bot.id,
+        )
+
+        return user_member.status == "administrator"
+
+    async def check_is_player_answered(self, player: Player, round_: Round) -> bool:
+        answered_player = await self.app.store.game.get_answered_player_by_round_id(
+            round_.id
+        )
+        if not answered_player:
+            return False
+
+        return answered_player.player_id == player.id
+
+    async def change_player_score(self, is_correct: bool):
+        round_ = await self.app.store.game.get_game_last_round_by_chat_id(
+            chat_id=self._get_chat_id()
+        )
+        question = await self.app.store.quizzes.get_question_by_id(
+            id=round_.current_question
+        )
+
+        if is_correct:
+            score = int(question.cost)
+        else:
+            score = -int(question.cost)
+        await self.app.store.game.update_player_score_by_id(
+            id=round_.answering_player, score=score
+        )
+
+    async def create_timer(self, delay: int):
+        chat_id = self._get_chat_id()
+        await asyncio.sleep(delay)
+        round_ = await self.app.store.game.get_game_last_round_by_chat_id(
+            chat_id=chat_id
+        )
+        if not round_.answering_player:
+            await self.app.store.tg_api.send_message(
+                chat_id=chat_id,
+                text="Никто не ответил на вопрос переходим к следующему",
+            )
+            await self.app.store.game.update_game_question_as_answered(
+                game_id=round_.game_id, question_id=round_.current_question
+            )
+
+            player = await self.app.store.game.get_last_round_winner(chat_id=chat_id)
+            await self.show_keyboard(player=player)

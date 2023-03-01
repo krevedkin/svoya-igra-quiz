@@ -109,6 +109,19 @@ class GameAccessor(BaseAccessor):
                 for player in result
             ]
 
+    async def update_player_score_by_id(self, id: int, score: int):
+        async with self.app.database.session() as session:
+            session: AsyncSession
+
+            stmt = (
+                update(PlayerModel)
+                .where(PlayerModel.id == id)
+                .values(score=PlayerModel.score + score)
+            )
+
+            await session.execute(stmt)
+            await session.commit()
+
     async def create_round(
         self,
         count: int,
@@ -145,6 +158,18 @@ class GameAccessor(BaseAccessor):
             await session.execute(stmt)
             await session.commit()
 
+    async def update_round_button_pressed_by_toggle(self, id: int, is_pressed: bool):
+        async with self.app.database.session() as session:
+            session: AsyncSession
+
+            stmt = (
+                update(RoundModel)
+                .where(RoundModel.id == id)
+                .values(is_button_pressed=is_pressed)
+            )
+            await session.execute(stmt)
+            await session.commit()
+
     async def get_round_by_id(self, id_: int) -> Round | None:
         async with self.app.database.session() as session:
             session: AsyncSession
@@ -160,6 +185,7 @@ class GameAccessor(BaseAccessor):
                 game_id=rows[0].game_id,
                 answering_player=rows[0].answering_player,
                 current_question=rows[0].current_question,
+                is_button_pressed=rows[0].is_button_pressed,
             )
 
     async def get_game_last_round_by_chat_id(self, chat_id: int) -> Round | None:
@@ -181,7 +207,23 @@ class GameAccessor(BaseAccessor):
                 game_id=result.game_id,
                 current_question=result.current_question,
                 answering_player=result.answering_player,
+                is_button_pressed=result.is_button_pressed,
             )
+
+    async def update_round_winner_by_id(self, round_id: int, player_id: int):
+        async with self.app.database.session() as session:
+            session: AsyncSession
+
+            stmt = (
+                update(RoundModel)
+                .where(
+                    RoundModel.id == round_id,
+                )
+                .values(winner_player=player_id)
+            )
+
+            await session.execute(stmt)
+            await session.commit()
 
     async def create_answered_player(
         self, player_id: int, round_id: int
@@ -232,21 +274,24 @@ class GameAccessor(BaseAccessor):
                 game_id=rows[0].game_id,
             )
 
-    async def get_game_questions_by_chat_id(self, chat_id) -> list[GameQuestion]:
+    async def get_game_questions_by_chat_id(self, chat_id: int) -> list[GameQuestion]:
         async with self.app.database.session() as session:
             session: AsyncSession
             stmt = (
                 select(
                     GameQuestionsModel.is_answered,
-                    GameQuestionsModel.cost,
+                    QuestionModel.cost.label("question_cost"),
                     QuestionModel.id.label("question_id"),
                     ThemeModel.title.label("theme"),
                 )
                 .join(GameModel)
                 .join(QuestionModel)
                 .join(ThemeModel)
-                .where(GameModel.chat_id == chat_id)
-                .order_by(GameQuestionsModel.cost)
+                .where(
+                    GameModel.chat_id == chat_id,
+                    GameQuestionsModel.is_answered == False,
+                )
+                .order_by(QuestionModel.cost)
             )
 
             result = await session.execute(stmt)
@@ -254,18 +299,34 @@ class GameAccessor(BaseAccessor):
             return [
                 GameQuestion(
                     is_answered=item.is_answered,
-                    cost=item.cost,
                     theme=item.theme,
-                    question=item.question_id,
+                    question_id=item.question_id,
+                    cost=item.question_cost,
                 )
                 for item in result
             ]
+
+    async def update_game_question_as_answered(self, game_id: int, question_id: int):
+        async with self.app.database.session() as session:
+            session: AsyncSession
+
+            stmt = (
+                update(GameQuestionsModel)
+                .where(
+                    GameQuestionsModel.game_id == game_id,
+                    GameQuestionsModel.question_id == question_id,
+                )
+                .values(is_answered=True)
+            )
+
+            await session.execute(stmt)
+            await session.commit()
 
     async def generate_game_questions(self, chat_id: int):
         async with self.app.database.session() as session:
             session: AsyncSession
 
-            stmt = select(ThemeModel.title).order_by(func.random()).limit(1)
+            stmt = select(ThemeModel.title).order_by(func.random()).limit(5)
 
             result = await session.execute(stmt)
             random_themes = [i for i in result.scalars()]
@@ -289,9 +350,29 @@ class GameAccessor(BaseAccessor):
                     game_id=game.id,
                     question_id=q.id,
                     is_answered=False,
-                    cost=q.cost,
                 )
                 for q in questions
             ]
             session.add_all(game_questions)
             await session.commit()
+
+    async def get_last_round_winner(self, chat_id: int) -> Player:
+        async with self.app.database.session() as session:
+            stmt = (
+                select(PlayerModel)
+                .join(GameModel)
+                .join(RoundModel)
+                .where(
+                    GameModel.chat_id == chat_id, RoundModel.winner_player is not None
+                )
+                .order_by(RoundModel.count.desc())
+            )
+            print(stmt)
+            result = await session.execute(stmt)
+            res = result.scalars().first()
+            return Player(
+                id=res.id,
+                nickname=res.nickname,
+                score=res.score,
+                game_id=res.game_id,
+            )

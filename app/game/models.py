@@ -36,7 +36,9 @@ class Round:
     count: int
     game_id: int
     current_question: int
+    is_button_pressed: bool = False
     answering_player: int | None = None
+    winner_player: int | None = None
 
 
 @dataclass
@@ -56,8 +58,9 @@ class GamePoll:
 @dataclass
 class GameQuestion:
     is_answered: bool
-    question: str
+    question_id: int
     theme: str
+    cost: str
 
 
 class GameModel(db):
@@ -77,7 +80,7 @@ class GameModel(db):
 class PlayerModel(db):
     __tablename__ = "players"
     id = Column(Integer, primary_key=True)
-    nickname = Column(String(50), nullable=False)
+    nickname = Column(String(50), nullable=False, unique=True)
     score = Column(Integer, default=0)
     game_id = Column(ForeignKey("games.id", ondelete="CASCADE"))
 
@@ -87,11 +90,16 @@ class RoundModel(db):
     id = Column(Integer, primary_key=True)
     count = Column(Integer, default=1, nullable=False)
     current_question = Column(
-        ForeignKey("game_questions.question_id", ondelete="CASCADE")
+        ForeignKey(
+            "game_questions.question_id",
+            ondelete="CASCADE",
+        )
     )
+    is_button_pressed = Column(Boolean, default=False)
 
     game_id = Column(ForeignKey("games.id", ondelete="CASCADE"))
-    answering_player = Column(String(50), nullable=True)
+    answering_player = Column(ForeignKey("players.id"), nullable=True)
+    winner_player = Column(ForeignKey("players.id"), nullable=True)
 
 
 class AnsweredPlayerModel(db):
@@ -107,7 +115,6 @@ class GameQuestionsModel(db):
     game_id = Column(ForeignKey(GameModel.id, ondelete="CASCADE"))
     question_id = Column(ForeignKey("questions.id", ondelete="CASCADE"), unique=True)
     is_answered = Column(Boolean, default=False)
-    cost = Column(Integer, default=100)
 
     def __repr__(self):
         return (

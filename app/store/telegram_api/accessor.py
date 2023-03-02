@@ -113,9 +113,7 @@ class TelegramApiAccessor(BaseAccessor):
             self.api_path + "/getChatMember", data=data
         ) as response:
             res = await response.json()
-            pprint(res)
             chat_member = self.parser.parse_chat_member(res["result"])
-            pprint(chat_member)
             return chat_member
 
     async def promote_or_demote_chat_member(
@@ -145,7 +143,7 @@ class TelegramApiAccessor(BaseAccessor):
             self.api_path + "/restrictChatMember", data=data
         ) as response:
             res = await response.json()
-            pprint(res)
+
             return res
 
     async def poll(self) -> list[Update]:

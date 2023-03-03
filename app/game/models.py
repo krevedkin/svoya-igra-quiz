@@ -31,31 +31,6 @@ class Player:
 
 
 @dataclass
-class Round:
-    id: int
-    count: int
-    game_id: int
-    current_question: int
-    is_button_pressed: bool = False
-    answering_player: int | None = None
-    winner_player: int | None = None
-
-
-@dataclass
-class AnsweredPlayer:
-    id: int
-    player_id: int
-    round_id: int
-
-
-@dataclass
-class GamePoll:
-    id: int
-    game_id: int
-    poll_id: str
-
-
-@dataclass
 class GameQuestion:
     is_answered: bool
     question_id: int
@@ -69,6 +44,7 @@ class GameModel(db):
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
     is_finished = Column(Boolean, default=False)
     chat_id = Column(BigInteger, unique=True)
+    answering_player = Column(ForeignKey("players.id"))
 
     def __repr__(self):
         return (
@@ -81,32 +57,39 @@ class PlayerModel(db):
     __tablename__ = "players"
     id = Column(Integer, primary_key=True)
     nickname = Column(String(50), nullable=False, unique=True)
+    tg_id = Column(Integer, unique=True)
+
+
+class GamePlayer(db):
+    __tablename__ = "game_players"
+    id = Column(Integer, primary_key=True)
+    game_id = Column(ForeignKey("games.id"))
+    player_id = Column(ForeignKey("players.id"))
     score = Column(Integer, default=0)
-    game_id = Column(ForeignKey("games.id", ondelete="CASCADE"))
 
 
-class RoundModel(db):
-    __tablename__ = "rounds"
-    id = Column(Integer, primary_key=True)
-    count = Column(Integer, default=1, nullable=False)
-    current_question = Column(
-        ForeignKey(
-            "game_questions.question_id",
-            ondelete="CASCADE",
-        )
-    )
-    is_button_pressed = Column(Boolean, default=False)
-
-    game_id = Column(ForeignKey("games.id", ondelete="CASCADE"))
-    answering_player = Column(ForeignKey("players.id"), nullable=True)
-    winner_player = Column(ForeignKey("players.id"), nullable=True)
-
-
-class AnsweredPlayerModel(db):
-    __tablename__ = "answered_players"
-    id = Column(Integer, primary_key=True)
-    player_id = Column(ForeignKey(PlayerModel.id, ondelete="CASCADE"))
-    round_id = Column(ForeignKey(RoundModel.id, ondelete="CASCADE"))
+# class RoundModel(db):
+#     __tablename__ = "rounds"
+#     id = Column(Integer, primary_key=True)
+#     count = Column(Integer, default=1, nullable=False)
+#     current_question = Column(
+#         ForeignKey(
+#             "game_questions.question_id",
+#             ondelete="CASCADE",
+#         )
+#     )
+#     is_button_pressed = Column(Boolean, default=False)
+#
+#     game_id = Column(ForeignKey("games.id", ondelete="CASCADE"))
+#     answering_player = Column(ForeignKey("players.id"), nullable=True)
+#     winner_player = Column(ForeignKey("players.id"), nullable=True)
+#
+#
+# class AnsweredPlayerModel(db):
+#     __tablename__ = "answered_players"
+#     id = Column(Integer, primary_key=True)
+#     player_id = Column(ForeignKey(PlayerModel.id, ondelete="CASCADE"))
+#     round_id = Column(ForeignKey(RoundModel.id, ondelete="CASCADE"))
 
 
 class GameQuestionsModel(db):

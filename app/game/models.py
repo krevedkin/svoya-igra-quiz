@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     TIMESTAMP,
     BigInteger,
+    UniqueConstraint,
 )
 
 from app.store.database.sqlalchemy_base import db
@@ -20,14 +21,14 @@ class Game:
     created_at: datetime
     is_finished: bool
     chat_id: int
+    answering_player: int
 
 
 @dataclass
 class Player:
     id: int
     nickname: str
-    score: int
-    game_id: int
+    tg_id: int
 
 
 @dataclass
@@ -44,7 +45,7 @@ class GameModel(db):
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
     is_finished = Column(Boolean, default=False)
     chat_id = Column(BigInteger, unique=True)
-    answering_player = Column(ForeignKey("players.id"))
+    answering_player = Column(ForeignKey("players.id"), default=None)
 
     def __repr__(self):
         return (
@@ -63,9 +64,16 @@ class PlayerModel(db):
 class GamePlayer(db):
     __tablename__ = "game_players"
     id = Column(Integer, primary_key=True)
-    game_id = Column(ForeignKey("games.id"))
-    player_id = Column(ForeignKey("players.id"))
+    game_id = Column(ForeignKey("games.id", ondelete="CASCADE"))
+    player_id = Column(ForeignKey("players.id", ondelete="CASCADE"))
     score = Column(Integer, default=0)
+    __table_args__ = (
+        UniqueConstraint(
+            "game_id",
+            "player_id",
+            name="uq_game_player",
+        ),
+    )
 
 
 # class RoundModel(db):
@@ -98,6 +106,7 @@ class GameQuestionsModel(db):
     game_id = Column(ForeignKey(GameModel.id, ondelete="CASCADE"))
     question_id = Column(ForeignKey("questions.id", ondelete="CASCADE"), unique=True)
     is_answered = Column(Boolean, default=False)
+    is_current = Column(Boolean, default=False)
 
     def __repr__(self):
         return (
@@ -105,5 +114,4 @@ class GameQuestionsModel(db):
             f"game_id={self.game_id} "
             f"question_id={self.question_id} "
             f"is_answered={self.is_answered} "
-            f"cost={self.cost})"
         )

@@ -1,322 +1,179 @@
-from sqlalchemy import select, delete, update, func
+from sqlalchemy import select, delete, update, func, join
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.base.base_accessor import BaseAccessor
+from icecream import ic
+
+# from app.game.models import (
+#     GameModel,
+#     PlayerModel,
+#     RoundModel,
+#     AnsweredPlayerModel,
+#     Game,
+#     Player,
+#     Round,
+#     AnsweredPlayer,
+#     GamePoll,
+#     GameQuestionsModel,
+#     GameQuestion,
+# )
 
 from app.game.models import (
     GameModel,
-    PlayerModel,
-    RoundModel,
-    AnsweredPlayerModel,
     Game,
+    PlayerModel,
     Player,
-    Round,
-    AnsweredPlayer,
-    GamePoll,
+    GamePlayer,
     GameQuestionsModel,
-    GameQuestion,
 )
-from app.quiz.models import QuestionModel, ThemeModel
+from app.quiz.models import ThemeModel, QuestionModel, Question
 
 
 class GameAccessor(BaseAccessor):
     async def create_game(self, chat_id: int) -> Game:
-        game = GameModel(chat_id=chat_id)
+        """Создает новую игру с помощью chat_id"""
         async with self.app.database.session() as session:
+            game = GameModel(chat_id=chat_id)
             session: AsyncSession
             session.add(game)
             await session.commit()
-
-        return Game(
-            id=game.id,
-            created_at=game.created_at,
-            is_finished=game.is_finished,
-            chat_id=game.chat_id,
-        )
-
-    async def _get_game(self, statement):
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            response = await session.execute(statement)
-            rows = response.first()
-            if not rows:
-                return None
             return Game(
-                id=rows[0].id,
-                created_at=rows[0].created_at,
-                is_finished=rows[0].is_finished,
-                chat_id=rows[0].chat_id,
+                id=game.id,
+                created_at=game.created_at,
+                is_finished=game.is_finished,
+                chat_id=game.chat_id,
+                answering_player=game.answering_player,
             )
 
-    async def get_game_by_id(self, id_: int) -> Game | None:
-        stmt = select(GameModel).where(GameModel.id == id_)
-        return await self._get_game(stmt)
-
-    async def get_game_by_chat_id(self, chat_id: int) -> Game | None:
-        stmt = select(GameModel).where(GameModel.chat_id == chat_id)
-        return await self._get_game(stmt)
-
     async def delete_game(self, chat_id: int):
+        """Удаляет запись об игре по chat_id"""
         async with self.app.database.session() as session:
             session: AsyncSession
             stmt = delete(GameModel).where(GameModel.chat_id == chat_id)
-            response = await session.execute(stmt)
-            await session.commit()
-
-    async def create_player(self, nickname: str, game_id: int) -> Player:
-        player = PlayerModel(nickname=nickname, game_id=game_id)
-        async with self.app.database.session() as session:
-            session.add(player)
-            await session.commit()
-
-            return Player(
-                id=player.id,
-                score=player.score,
-                nickname=player.nickname,
-                game_id=player.game_id,
-            )
-
-    async def get_player_by_nickname(self, nickname: str) -> Player | None:
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            stmt = select(PlayerModel).where(PlayerModel.nickname == nickname)
-            response = await session.execute(stmt)
-            rows = response.first()
-            if not rows:
-                return None
-            return Player(
-                id=rows[0].id,
-                nickname=rows[0].nickname,
-                score=rows[0].score,
-                game_id=rows[0].game_id,
-            )
-
-    async def get_players_by_game_chat_id(self, chat_id) -> list[Player]:
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            stmt = (
-                select(PlayerModel).join(GameModel).where(GameModel.chat_id == chat_id)
-            )
-            result = await session.execute(stmt)
-            result = result.scalars()
-            return [
-                Player(
-                    id=player.id,
-                    score=player.score,
-                    nickname=player.nickname,
-                    game_id=player.game_id,
-                )
-                for player in result
-            ]
-
-    async def update_player_score_by_id(self, id: int, score: int):
-        async with self.app.database.session() as session:
-            session: AsyncSession
-
-            stmt = (
-                update(PlayerModel)
-                .where(PlayerModel.id == id)
-                .values(score=PlayerModel.score + score)
-            )
-
             await session.execute(stmt)
             await session.commit()
 
-    async def create_round(
-        self,
-        count: int,
-        game_id: int,
-        current_question: int,
-    ) -> Round:
-        round_ = RoundModel(
-            count=count,
-            game_id=game_id,
-            current_question=current_question,
-        )
-        async with self.app.database.session() as session:
-            session.add(round_)
-            await session.commit()
-
-            return Round(
-                id=round_.id,
-                count=round_.count,
-                game_id=round_.game_id,
-                current_question=round_.current_question,
-            )
-
-    async def update_round_answering_player(
-        self, id: str, answering_player: str
-    ) -> None:
-        async with self.app.database.session() as session:
-            session: AsyncSession
-
-            stmt = (
-                update(RoundModel)
-                .where(RoundModel.id == id)
-                .values(answering_player=answering_player)
-            )
-            await session.execute(stmt)
-            await session.commit()
-
-    async def update_round_button_pressed_by_toggle(self, id: int, is_pressed: bool):
-        async with self.app.database.session() as session:
-            session: AsyncSession
-
-            stmt = (
-                update(RoundModel)
-                .where(RoundModel.id == id)
-                .values(is_button_pressed=is_pressed)
-            )
-            await session.execute(stmt)
-            await session.commit()
-
-    async def get_round_by_id(self, id_: int) -> Round | None:
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            stmt = select(RoundModel).where(PlayerModel.id == id_)
-            response = await session.execute(stmt)
-            rows = response.first()
-            if not rows:
-                return None
-
-            return Round(
-                id=rows[0].id,
-                count=rows[0].count,
-                game_id=rows[0].game_id,
-                answering_player=rows[0].answering_player,
-                current_question=rows[0].current_question,
-                is_button_pressed=rows[0].is_button_pressed,
-            )
-
-    async def get_game_last_round_by_chat_id(self, chat_id: int) -> Round | None:
+    async def update_game_finished_status(self, chat_id: int,
+                                          is_finished: bool = True):
+        """Изменяет статус игры (поле is_finished) по chat_id"""
         async with self.app.database.session() as session:
             session: AsyncSession
             stmt = (
-                select(RoundModel)
-                .join(GameModel)
+                update(GameModel)
                 .where(GameModel.chat_id == chat_id)
-                .order_by(RoundModel.count.desc())
+                .values(is_finished=is_finished)
             )
-            res = await session.execute(stmt)
-            result = res.scalars().first()
+
+            await session.execute(stmt)
+            await session.commit()
+
+    async def update_game_answering_player(self, chat_id: int,
+                                           user_id: int | None):
+        """
+        Устанавливает поле answering_player в соответствии с user_id
+        Если нужно очистить поле user_id то следует передать None
+        Это нужно для того чтобы не было флага отвечающего игрока, и остальные
+        игроки могли нажать на кнопку ответить
+        """
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                update(GameModel)
+                .where(GameModel.chat_id == chat_id)
+                .values(answering_player=user_id)
+            )
+            await session.execute(stmt)
+            await session.commit()
+
+    async def get_game(self, chat_id: int) -> Game | None:
+        """Возвращает объект игры по chat_id"""
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = select(GameModel).where(GameModel.chat_id == chat_id)
+
+            result = await session.execute(stmt)
+            result = result.first()
             if not result:
                 return None
-            return Round(
-                id=result.id,
-                count=result.count,
-                game_id=result.game_id,
-                current_question=result.current_question,
-                answering_player=result.answering_player,
-                is_button_pressed=result.is_button_pressed,
+
+            game = result[0]
+            return Game(
+                id=game.id,
+                created_at=game.created_at,
+                is_finished=game.is_finished,
+                chat_id=game.chat_id,
+                answering_player=game.answering_player,
             )
 
-    async def update_round_winner_by_id(self, round_id: int, player_id: int):
+    async def create_player(self, nickname: str, tg_id: int) -> Player:
+        """
+        Создает нового игрока
+        """
         async with self.app.database.session() as session:
-            session: AsyncSession
-
-            stmt = (
-                update(RoundModel)
-                .where(
-                    RoundModel.id == round_id,
-                )
-                .values(winner_player=player_id)
+            player = PlayerModel(
+                nickname=nickname,
+                tg_id=tg_id,
             )
-
-            await session.execute(stmt)
+            session: AsyncSession
+            session.add(player)
             await session.commit()
+            return player
 
-    async def create_answered_player(
-        self, player_id: int, round_id: int
-    ) -> AnsweredPlayer:
-        answered_player = AnsweredPlayerModel(
-            player_id=player_id,
-            round_id=round_id,
-        )
+    async def get_player(self, tg_id: int) -> Player | None:
+        """Возвращает объект Player"""
         async with self.app.database.session() as session:
-            session.add(answered_player)
-            await session.commit()
-
-            return AnsweredPlayer(
-                id=answered_player.id,
-                player_id=answered_player.player_id,
-                round_id=answered_player.round_id,
-            )
-
-    async def get_answered_player_by_round_id(
-        self, round_id: int
-    ) -> AnsweredPlayer | None:
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            stmt = select(AnsweredPlayerModel).where(
-                AnsweredPlayerModel.round_id == round_id
-            )
-            response = await session.execute(stmt)
-            rows = response.first()
-            if not rows:
-                return None
-
-            return AnsweredPlayer(
-                id=rows[0].id,
-                round_id=rows[0].round_id,
-                player_id=rows[0].player_id,
-            )
-
-    async def _get_game_poll(self, statement) -> GamePoll | None:
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            response = await session.execute(statement)
-            rows = response.first()
-            if not rows:
-                return None
-            return GamePoll(
-                id=rows[0].id,
-                poll_id=rows[0].poll_id,
-                game_id=rows[0].game_id,
-            )
-
-    async def get_game_questions_by_chat_id(self, chat_id: int) -> list[GameQuestion]:
-        async with self.app.database.session() as session:
-            session: AsyncSession
-            stmt = (
-                select(
-                    GameQuestionsModel.is_answered,
-                    QuestionModel.cost.label("question_cost"),
-                    QuestionModel.id.label("question_id"),
-                    ThemeModel.title.label("theme"),
-                )
-                .join(GameModel)
-                .join(QuestionModel)
-                .join(ThemeModel)
-                .where(
-                    GameModel.chat_id == chat_id,
-                    GameQuestionsModel.is_answered == False,
-                )
-                .order_by(QuestionModel.cost)
-            )
-
+            stmt = select(PlayerModel).where(PlayerModel.tg_id == tg_id)
             result = await session.execute(stmt)
 
-            return [
-                GameQuestion(
-                    is_answered=item.is_answered,
-                    theme=item.theme,
-                    question_id=item.question_id,
-                    cost=item.question_cost,
-                )
-                for item in result
-            ]
+            if not result:
+                return None
 
-    async def update_game_question_as_answered(self, game_id: int, question_id: int):
+            result = result.first()[0]
+            return Player(
+                id=result.id,
+                nickname=result.nickname,
+                tg_id=result.tg_id,
+            )
+
+    async def get_game_players(self, chat_id: int) -> list[Player]:
+        """Возвращает список игроков в текущей игре"""
         async with self.app.database.session() as session:
             session: AsyncSession
-
             stmt = (
-                update(GameQuestionsModel)
+                select(PlayerModel)
+                .join(GamePlayer)
+                .join(GameModel)
                 .where(
-                    GameQuestionsModel.game_id == game_id,
-                    GameQuestionsModel.question_id == question_id,
+                    GameModel.chat_id == chat_id,
                 )
-                .values(is_answered=True)
+            )
+            result = await session.execute(stmt)
+            players = [
+                Player(id=player.id, nickname=player.nickname,
+                       tg_id=player.tg_id)
+                for player in result.scalars()
+            ]
+            return players
+
+    async def create_game_player(self, game: Game, player: Player):
+        """Создает новую запись об игроке связанного с конкретной игрой"""
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            game_player = GamePlayer(game_id=game.id, player_id=player.id)
+            session.add(game_player)
+            await session.commit()
+
+    async def update_game_player_score(self, game: Game, player_id: int,
+                                       score: int):
+        """Изменяет количество очков пользователя в игре"""
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                update(GamePlayer)
+                .values(score=GamePlayer.score + score)
+                .where(GamePlayer.game_id == game.id,
+                       GamePlayer.player_id == player_id)
             )
 
             await session.execute(stmt)
@@ -326,7 +183,7 @@ class GameAccessor(BaseAccessor):
         async with self.app.database.session() as session:
             session: AsyncSession
 
-            stmt = select(ThemeModel.title).order_by(func.random()).limit(5)
+            stmt = select(ThemeModel.title).order_by(func.random()).limit(1)
 
             result = await session.execute(stmt)
             random_themes = [i for i in result.scalars()]
@@ -344,7 +201,7 @@ class GameAccessor(BaseAccessor):
                 for q in result.scalars():
                     questions.append(q)
 
-            game = await self.get_game_by_chat_id(chat_id)
+            game = await self.get_game(chat_id)
             game_questions = [
                 GameQuestionsModel(
                     game_id=game.id,
@@ -356,23 +213,142 @@ class GameAccessor(BaseAccessor):
             session.add_all(game_questions)
             await session.commit()
 
-    async def get_last_round_winner(self, chat_id: int) -> Player:
+    async def get_game_player_scores(self, chat_id: int) -> list:
         async with self.app.database.session() as session:
+            session: AsyncSession
             stmt = (
-                select(PlayerModel)
-                .join(GameModel)
-                .join(RoundModel)
-                .where(
-                    GameModel.chat_id == chat_id, RoundModel.winner_player is not None
+                select([PlayerModel.nickname, GamePlayer.score])
+                .select_from(
+                    join(
+                        GamePlayer, PlayerModel,
+                        PlayerModel.id == GamePlayer.player_id
+                    )
+                    .join(
+                        GameModel,
+                        GameModel.id == GamePlayer.game_id
+                    )
                 )
-                .order_by(RoundModel.count.desc())
+                .where(GameModel.chat_id == chat_id)
             )
-            print(stmt)
+
             result = await session.execute(stmt)
-            res = result.scalars().first()
-            return Player(
-                id=res.id,
-                nickname=res.nickname,
-                score=res.score,
-                game_id=res.game_id,
+
+            return [row for row in result]
+
+    async def get_game_questions(self, chat_id: int) -> dict:
+        """
+        Возвращает вопросы связанные с конкретной игрой, в виде словаря
+        ключами которого являются темы, а вопросы представлены ценой и id
+        """
+        async with self.app.database.session() as session:
+            session: AsyncSession
+
+            stmt = (
+                select([GameQuestionsModel.question_id, QuestionModel.cost,
+                        ThemeModel.title])
+                .select_from(
+                    join(
+                        GameQuestionsModel, QuestionModel,
+                        GameQuestionsModel.question_id == QuestionModel.id
+                    )
+                    .join(
+                        ThemeModel,
+                        QuestionModel.theme_id == ThemeModel.id)
+                    .join(
+                        GameModel,
+                        GameQuestionsModel.game_id == GameModel.id
+                    )
+                )
+                .where(
+                    GameQuestionsModel.is_answered == False,
+                    GameModel.chat_id == chat_id
+                )
+                .order_by(ThemeModel.id, QuestionModel.cost)
             )
+
+            result = await session.execute(stmt)
+
+            res = {}
+
+            for row in result.fetchall():
+                question_id = row[0]
+                cost = row[1]
+                theme = row[2]
+
+                if theme not in res:
+                    res[theme] = [{"question_id": question_id, "cost": cost}]
+                else:
+                    res[theme].append(
+                        {"question_id": question_id, "cost": cost})
+
+            return res
+
+    async def update_game_question_state(self, question_id: int,
+                                         chat_id: int,
+                                         **kwargs):
+        """
+        Метод для установки статуса текущего вопроса в игре
+        kwargs могут быть is_answered или is_current типа bool
+        """
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            game = await self.get_game(chat_id)
+            stmt = (
+                update(GameQuestionsModel)
+                .values(**kwargs)
+                .where(GameQuestionsModel.question_id == question_id,
+                       GameQuestionsModel.game_id == game.id)
+            )
+
+            await session.execute(stmt)
+            await session.commit()
+
+    async def get_current_game_question(self, chat_id: int) -> Question:
+        """Метод для получения текущего вопроса в игре"""
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                select(QuestionModel)
+                .join(GameQuestionsModel)
+                .join(GameModel)
+                .where(GameModel.chat_id == chat_id,
+                       GameQuestionsModel.is_current == True)
+            )
+
+            result = await session.execute(stmt)
+            result = result.scalars().first()
+            return Question(
+                id=result.id,
+                title=result.title,
+                theme_id=result.theme_id,
+                answer=result.answer,
+                cost=result.cost,
+            )
+
+    async def get_player_winner(self, chat_id: int) -> list[tuple[str, str]]:
+        """
+        Метод для получения победителя в игре.
+        Возвращает список со строками - никнейм + счет
+        Список сделан для того, чтобы обработать ситуацию когда у игроков равный
+        счет.
+        """
+        async with self.app.database.session() as session:
+            session: AsyncSession
+
+            subquery = select([func.max(GamePlayer.score)]).where(
+                GamePlayer.game_id == GamePlayer.game_id).as_scalar()
+
+            stmt = (
+                select([PlayerModel.nickname,
+                        GamePlayer.score])
+                .select_from(join(PlayerModel, GamePlayer,
+                                  PlayerModel.id == GamePlayer.player_id).join(
+                    GameModel, GamePlayer.game_id == GameModel.id))
+                .where(GameModel.chat_id == chat_id)
+                .where(GamePlayer.score == subquery)
+            )
+
+            res = await session.execute(stmt)
+
+            nickname_with_score = [player for player in res.fetchall()]
+            return nickname_with_score

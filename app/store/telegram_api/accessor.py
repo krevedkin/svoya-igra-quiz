@@ -1,6 +1,5 @@
 import json
 import typing
-from pprint import pprint
 
 from aiohttp import ClientSession, TCPConnector
 
@@ -151,7 +150,7 @@ class TelegramApiAccessor(BaseAccessor):
         async with self.session.get(
             self.api_path + "/getUpdates",
             data={
-                "timeout": 5,
+                "timeout": 60,
                 "offset": self.last_update + 1,
                 "allowed_updates": json.dumps(
                     [

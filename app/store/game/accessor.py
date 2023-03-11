@@ -1,23 +1,7 @@
 from sqlalchemy import select, delete, update, func, join
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.base.base_accessor import BaseAccessor
-from icecream import ic
-
-# from app.game.models import (
-#     GameModel,
-#     PlayerModel,
-#     RoundModel,
-#     AnsweredPlayerModel,
-#     Game,
-#     Player,
-#     Round,
-#     AnsweredPlayer,
-#     GamePoll,
-#     GameQuestionsModel,
-#     GameQuestion,
-# )
 
 from app.game.models import (
     GameModel,
@@ -26,6 +10,7 @@ from app.game.models import (
     Player,
     GamePlayer,
     GameQuestionsModel,
+    GPlayer,
 )
 from app.quiz.models import ThemeModel, QuestionModel, Question
 
@@ -43,7 +28,6 @@ class GameAccessor(BaseAccessor):
                 created_at=game.created_at,
                 is_finished=game.is_finished,
                 chat_id=game.chat_id,
-                answering_player=game.answering_player,
             )
 
     async def delete_game(self, chat_id: int):
@@ -68,22 +52,34 @@ class GameAccessor(BaseAccessor):
             await session.execute(stmt)
             await session.commit()
 
-    async def update_game_answering_player(self, chat_id: int,
-                                           user_id: int | None):
+    async def update_player_answering_or_chooser(
+            self,
+            chat_id: int,
+            player_tg_id: int,
+            is_answering: bool | None = None,
+            is_chooser: bool | None = None
+    ):
         """
-        Устанавливает поле answering_player в соответствии с user_id
-        Если нужно очистить поле user_id то следует передать None
-        Это нужно для того чтобы не было флага отвечающего игрока, и остальные
-        игроки могли нажать на кнопку ответить
+        Устанавливает поля is_question_chooser или is_answering модели
+        GamePlayers
         """
         async with self.app.database.session() as session:
             session: AsyncSession
-            stmt = (
-                update(GameModel)
-                .where(GameModel.chat_id == chat_id)
-                .values(answering_player=user_id)
+            query = (
+                select(GamePlayer)
+                .join(GameModel)
+                .join(PlayerModel)
+                .where(
+                    GameModel.chat_id == chat_id,
+                    PlayerModel.tg_id == player_tg_id
+                )
             )
-            await session.execute(stmt)
+            results = await session.execute(query)
+            for result in results.scalars():
+                if is_answering is not None:
+                    result.is_answering = is_answering
+                if is_chooser is not None:
+                    result.is_question_chooser = is_chooser
             await session.commit()
 
     async def get_game(self, chat_id: int) -> Game | None:
@@ -103,12 +99,11 @@ class GameAccessor(BaseAccessor):
                 created_at=game.created_at,
                 is_finished=game.is_finished,
                 chat_id=game.chat_id,
-                answering_player=game.answering_player,
             )
 
     async def create_player(self, nickname: str, tg_id: int) -> Player:
         """
-        Создает нового игрока
+        Создает нового игрока в таблице Players
         """
         async with self.app.database.session() as session:
             player = PlayerModel(
@@ -121,38 +116,78 @@ class GameAccessor(BaseAccessor):
             return player
 
     async def get_player(self, tg_id: int) -> Player | None:
-        """Возвращает объект Player"""
         async with self.app.database.session() as session:
             stmt = select(PlayerModel).where(PlayerModel.tg_id == tg_id)
+            result = await session.execute(stmt)
+            result = result.first()
+            if not result:
+                return None
+
+            result = result[0]
+
+            return Player(tg_id=result.tg_id, nickname=result.nickname,
+                          id=result.id)
+
+    async def get_game_player(self, chat_id: int, tg_id: int) -> GPlayer | None:
+        """Возвращает объект GPlayer связанного с текущей игрой"""
+        async with self.app.database.session() as session:
+            stmt = (
+                select(
+                    GamePlayer.score,
+                    GamePlayer.is_answering,
+                    GamePlayer.is_question_chooser,
+                    PlayerModel.tg_id,
+                    PlayerModel.nickname,
+                    PlayerModel.id
+                )
+                .join(PlayerModel)
+                .join(GameModel)
+                .where(PlayerModel.tg_id == tg_id,
+                       GameModel.chat_id == chat_id))
             result = await session.execute(stmt)
 
             if not result:
                 return None
 
-            result = result.first()[0]
-            return Player(
+            result = result.first()
+            return GPlayer(
                 id=result.id,
                 nickname=result.nickname,
                 tg_id=result.tg_id,
+                score=result.score,
+                is_question_chooser=result.is_question_chooser,
+                is_answering=result.is_answering
             )
 
-    async def get_game_players(self, chat_id: int) -> list[Player]:
+    async def get_game_players(self, chat_id: int) -> list[GPlayer]:
         """Возвращает список игроков в текущей игре"""
         async with self.app.database.session() as session:
             session: AsyncSession
             stmt = (
-                select(PlayerModel)
-                .join(GamePlayer)
+                select(
+                    GamePlayer.score,
+                    GamePlayer.is_answering,
+                    GamePlayer.is_question_chooser,
+                    PlayerModel.tg_id,
+                    PlayerModel.nickname,
+                    PlayerModel.id
+                )
+                .join(PlayerModel)
                 .join(GameModel)
                 .where(
                     GameModel.chat_id == chat_id,
                 )
             )
             result = await session.execute(stmt)
+
             players = [
-                Player(id=player.id, nickname=player.nickname,
-                       tg_id=player.tg_id)
-                for player in result.scalars()
+                GPlayer(id=player.id,
+                        nickname=player.nickname,
+                        tg_id=player.tg_id,
+                        score=player.score,
+                        is_answering=player.is_answering,
+                        is_question_chooser=player.is_question_chooser)
+                for player in result.fetchall()
             ]
             return players
 
@@ -179,28 +214,101 @@ class GameAccessor(BaseAccessor):
             await session.execute(stmt)
             await session.commit()
 
+    async def get_answering_player(self, chat_id: int) -> GPlayer | None:
+        """Возвращает Gplayer объект игрока, который в данный момент является
+        отвечающим, если такого нет вернет None
+        """
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                select(
+                    GamePlayer.score,
+                    GamePlayer.is_answering,
+                    GamePlayer.is_question_chooser,
+                    PlayerModel.tg_id,
+                    PlayerModel.nickname,
+                    PlayerModel.id
+                )
+                .join(GameModel)
+                .join(PlayerModel)
+                .where(GameModel.chat_id == chat_id,
+                       GamePlayer.is_answering == True)
+            )
+            result = await session.execute(stmt)
+            result = result.first()
+            if not result:
+                return None
+
+            return GPlayer(
+                id=result.id,
+                nickname=result.nickname,
+                tg_id=result.tg_id,
+                score=result.score,
+                is_question_chooser=result.is_question_chooser,
+                is_answering=result.is_answering
+            )
+
+    async def get_question_chooser_player(self, chat_id: int) -> GPlayer | None:
+        """Возвращает Gplayer объект игрока, который в данный момент является
+        отвечающим, если такого нет вернет None
+        """
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                select(
+                    GamePlayer.score,
+                    GamePlayer.is_answering,
+                    GamePlayer.is_question_chooser,
+                    PlayerModel.tg_id,
+                    PlayerModel.nickname,
+                    PlayerModel.id
+                )
+                .join(GameModel)
+                .join(PlayerModel)
+                .where(GameModel.chat_id == chat_id,
+                       GamePlayer.is_question_chooser == True)
+            )
+            result = await session.execute(stmt)
+            result = result.first()
+            if not result:
+                return None
+
+            return GPlayer(
+                id=result.id,
+                nickname=result.nickname,
+                tg_id=result.tg_id,
+                score=result.score,
+                is_question_chooser=result.is_question_chooser,
+                is_answering=result.is_answering
+            )
+
     async def generate_game_questions(self, chat_id: int):
         async with self.app.database.session() as session:
             session: AsyncSession
 
-            stmt = select(ThemeModel.title).order_by(func.random()).limit(1)
+            stmt = select(ThemeModel.title).order_by(func.random()).limit(5)
 
             result = await session.execute(stmt)
             random_themes = [i for i in result.scalars()]
 
             questions = []
             for theme in random_themes:
-                stmt = (
+                subquery = (
                     select(QuestionModel)
                     .join(ThemeModel)
                     .filter(ThemeModel.title == theme)
+                    .distinct(QuestionModel.cost)
+                    .subquery()
+                )
+
+                stmt = (
+                    select(subquery)
                     .order_by(func.random())
                     .limit(5)
                 )
                 result = await session.execute(stmt)
-                for q in result.scalars():
+                for q in result.fetchall():
                     questions.append(q)
-
             game = await self.get_game(chat_id)
             game_questions = [
                 GameQuestionsModel(

@@ -229,7 +229,7 @@ class Bot:
             "Нажмите на кнопку если готовы отвечать",
             markup=self.create_markup(
                 (
-                    ("Ответить", "ready_to_answer"),
+                    ("Ответить", CallbackQueryDatas.READY_TO_ANSWER.value),
                 )
             )
         )
@@ -338,8 +338,13 @@ class Bot:
                 text="Нажмите для регистрации",
                 markup=self.create_markup(
                     (
-                        ("Зарегистрироваться", "register_new_player"),
-                        ("Начать игру", "confirm_game_start"),
+                        (
+                            "Зарегистрироваться",
+                            CallbackQueryDatas.REGISTER_NEW_PLAYER.value),
+                        (
+                            "Начать игру",
+                            CallbackQueryDatas.CONFIRM_GAME_START.value
+                        ),
                     )
                 ),
             )
@@ -663,14 +668,14 @@ class Bot:
             match data:
                 case int():
                     await self.send_question(data)
-                case "confirm_game_start":
+                case CallbackQueryDatas.CONFIRM_GAME_START.value:
                     await self.confirm_game_start()
-                case "register_new_player":
+                case CallbackQueryDatas.REGISTER_NEW_PLAYER.value:
                     await self.create_player()
-                case "ready_to_answer":
+                case CallbackQueryDatas.READY_TO_ANSWER.value:
                     await self.ask_for_answer()
 
-                case "null":
+                case CallbackQueryDatas.NULL.value:
                     # null сделан для того, чтобы если пользователь нажмет на
                     # кнопку которая представляет тему, ему было понятно что на
                     # нее жать не надо :)

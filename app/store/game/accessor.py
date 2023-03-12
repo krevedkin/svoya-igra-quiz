@@ -283,11 +283,32 @@ class GameAccessor(BaseAccessor):
             )
 
     async def generate_game_questions(self, chat_id: int):
+        """
+            Метод для генерирования вопросов игры.
+            Первое выражение выбирает 5 случайных тем из базы данных,
+        у которых есть по крайней мере 5 вопросов с уникальной стоимостью,
+        такие как 100,200, 300, 400, 500.
+        Если не будет хотя бы одного из вопросов с такой стоимостью, они не
+        попадут в выборку, это нужно для того чтобы не было ситуации когда
+        игра генерирует клавиатуру, а там не хватает вопросов в какой-то из
+        тем.
+            Далее в цикле для каждой темы делается выборка вопросов так,
+        чтобы в нее попали только вопросы с уникальными ценами.
+
+        В результирующем наборе будут вопрос за 100 за 200 за 300 за 400 за 500.
+        После чего эти вопросы будут записаны в таблицу game_questions.
+        """
         async with self.app.database.session() as session:
             session: AsyncSession
 
-            stmt = select(ThemeModel.title).order_by(func.random()).limit(5)
-
+            stmt = (
+                select(ThemeModel.title)
+                .join(QuestionModel)
+                .group_by(ThemeModel.id)
+                .having(func.count(QuestionModel.cost.distinct()) >= 5)
+                .order_by(func.random())
+                .limit(5)
+            )
             result = await session.execute(stmt)
             random_themes = [i for i in result.scalars()]
 

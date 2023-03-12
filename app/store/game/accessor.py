@@ -30,7 +30,7 @@ class GameAccessor(BaseAccessor):
                 chat_id=game.chat_id,
             )
 
-    async def delete_game(self, chat_id: int):
+    async def delete_game(self, chat_id: int) -> None:
         """Удаляет запись об игре по chat_id"""
         async with self.app.database.session() as session:
             session: AsyncSession
@@ -62,7 +62,7 @@ class GameAccessor(BaseAccessor):
                     chat_id=None,
                 )
 
-    async def delete_game_chat_id(self, chat_id: int):
+    async def delete_game_chat_id(self, chat_id: int) -> None:
         """Удаляет запись chat_id из игры"""
         async with self.app.database.session() as session:
             stmt = (
@@ -74,7 +74,7 @@ class GameAccessor(BaseAccessor):
             await session.commit()
 
     async def update_game_finished_status(self, chat_id: int,
-                                          is_finished: bool = True):
+                                          is_finished: bool = True) -> None:
         """Изменяет статус игры (поле is_finished) по chat_id"""
         async with self.app.database.session() as session:
             session: AsyncSession
@@ -93,7 +93,7 @@ class GameAccessor(BaseAccessor):
             player_tg_id: int,
             is_answering: bool | None = None,
             is_chooser: bool | None = None
-    ):
+    ) -> None:
         """
         Устанавливает поля is_question_chooser или is_answering модели
         GamePlayers
@@ -250,7 +250,7 @@ class GameAccessor(BaseAccessor):
             ]
             return players
 
-    async def create_game_player(self, game: Game, player: Player):
+    async def create_game_player(self, game: Game, player: Player) -> None:
         """Создает новую запись об игроке связанного с конкретной игрой"""
         async with self.app.database.session() as session:
             session: AsyncSession
@@ -259,7 +259,7 @@ class GameAccessor(BaseAccessor):
             await session.commit()
 
     async def update_game_player_score(self, game: Game, player_id: int,
-                                       score: int):
+                                       score: int) -> None:
         """Изменяет количество очков пользователя в игре"""
         async with self.app.database.session() as session:
             session: AsyncSession
@@ -360,7 +360,7 @@ class GameAccessor(BaseAccessor):
             result = await session.execute(stmt)
             return [theme for theme in result.scalars()]
 
-    async def generate_game_questions(self, chat_id: int):
+    async def generate_game_questions(self, chat_id: int) -> None:
         """
             Метод для генерирования вопросов игры.
             Первое выражение выбирает 5 случайных тем из базы данных,
@@ -492,7 +492,7 @@ class GameAccessor(BaseAccessor):
 
     async def update_game_question_state(self, question_id: int,
                                          chat_id: int,
-                                         **kwargs):
+                                         **kwargs: dict[str, bool]) -> None:
         """
         Метод для установки статуса текущего вопроса в игре
         kwargs могут быть is_answered или is_current типа bool

@@ -1,4 +1,4 @@
-from sqlalchemy import select, delete, update, func, join
+from sqlalchemy import select, delete, update, func, join, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.base.base_accessor import BaseAccessor
@@ -35,6 +35,41 @@ class GameAccessor(BaseAccessor):
         async with self.app.database.session() as session:
             session: AsyncSession
             stmt = delete(GameModel).where(GameModel.chat_id == chat_id)
+            await session.execute(stmt)
+            await session.commit()
+
+    async def delete_finished_game_by_id(self, id_: int) -> Game | None:
+        """
+        Удаляет законченную игру по ее id
+        """
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                delete(GameModel)
+                .where(GameModel.id == id_, GameModel.is_finished == True)
+                .returning(GameModel)
+            )
+
+            res = await session.execute(stmt)
+            await session.commit()
+
+            deleted_game = res.fetchone()
+            if deleted_game:
+                return Game(
+                    id=deleted_game.id,
+                    created_at=deleted_game.created_at,
+                    is_finished=True,
+                    chat_id=None,
+                )
+
+    async def delete_game_chat_id(self, chat_id: int):
+        """Удаляет запись chat_id из игры"""
+        async with self.app.database.session() as session:
+            stmt = (
+                update(GameModel)
+                .values(chat_id=None)
+                .where(GameModel.chat_id == chat_id)
+            )
             await session.execute(stmt)
             await session.commit()
 
@@ -86,7 +121,8 @@ class GameAccessor(BaseAccessor):
         """Возвращает объект игры по chat_id"""
         async with self.app.database.session() as session:
             session: AsyncSession
-            stmt = select(GameModel).where(GameModel.chat_id == chat_id)
+            stmt = select(GameModel).where(GameModel.chat_id == chat_id,
+                                           GameModel.is_finished == False)
 
             result = await session.execute(stmt)
             result = result.first()
@@ -100,6 +136,29 @@ class GameAccessor(BaseAccessor):
                 is_finished=game.is_finished,
                 chat_id=game.chat_id,
             )
+
+    async def get_finished_games(self) -> list[dict]:
+        """Возвращает список законченных игр"""
+        async with self.app.database.session() as session:
+            query = text("""
+                    SELECT games.id, games.created_at, array_agg(players.nickname) 
+                    AS player_nicknames, array_agg(game_players.score) AS scores
+                    FROM games
+                    JOIN game_players ON games.id = game_players.game_id
+                    JOIN players ON players.id = game_players.player_id
+                    WHERE games.is_finished = true
+                    GROUP BY games.id
+                """)
+            result = await session.execute(query)
+            games = []
+            for row in result:
+                game = {
+                    "id": row[0],
+                    "created_at": row[1].isoformat(),
+                    "players_and_scores": dict(zip(row[2], row[3]))
+                }
+                games.append(game)
+            return games
 
     async def create_player(self, nickname: str, tg_id: int) -> Player:
         """
@@ -326,7 +385,7 @@ class GameAccessor(BaseAccessor):
                 .group_by(ThemeModel.id)
                 .having(func.count(QuestionModel.cost.distinct()) >= 5)
                 .order_by(func.random())
-                .limit(5)
+                .limit(1)
             )
             result = await session.execute(stmt)
             random_themes = [i for i in result.scalars()]
@@ -344,7 +403,7 @@ class GameAccessor(BaseAccessor):
                 stmt = (
                     select(subquery)
                     .order_by(func.random())
-                    .limit(5)
+                    .limit(1)
                 )
                 result = await session.execute(stmt)
                 for q in result.fetchall():

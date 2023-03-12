@@ -36,7 +36,7 @@ class RequestResponseParser:
 
         if "poll_answer" in update:
             poll_answer = self.parse_poll_answer(update["poll_answer"])
-            _update.poll = poll_answer
+            _update.poll_answer = poll_answer
 
         return _update
 
@@ -71,13 +71,13 @@ class RequestResponseParser:
 
         return _poll_option
 
-    def parse_poll_answer(self, poll_answer: dict):
+    def parse_poll_answer(self, poll_answer: dict) -> PollAnswer:
         _poll_answer = PollAnswer(
             poll_id=poll_answer["poll_id"],
             user=self.parse_user(poll_answer["user"]),
             option_ids=poll_answer["option_ids"],
         )
-        return poll_answer
+        return _poll_answer
 
     def parse_poll(self, poll: dict) -> Poll:
         options = [self.parse_poll_option(option) for option in poll["options"]]
@@ -165,13 +165,13 @@ class RequestResponseParser:
 
         return _callback_query
 
-    def parse_chat_administrator(self, admin: dict):
+    def parse_chat_administrator(self, admin: dict) -> ChatMemberAdministrator:
         return ChatMemberAdministrator(
             status=admin["status"], user=self.parse_user(admin["user"])
         )
 
     @staticmethod
-    def parse_get_me(get_me: dict):
+    def parse_get_me(get_me: dict) -> User:
         return User(
             id=get_me["id"],
             is_bot=get_me["is_bot"],

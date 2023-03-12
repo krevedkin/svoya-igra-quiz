@@ -1,12 +1,31 @@
 from aiohttp.web_exceptions import HTTPConflict, HTTPNotFound
-from aiohttp_apispec import querystring_schema, request_schema, response_schema, docs
+from aiohttp_apispec import (
+    querystring_schema,
+    request_schema,
+    response_schema,
+    docs
+)
+
+from sqlalchemy.exc import IntegrityError
 
 from app.quiz.schemes import (
-    ListQuestionSchema,
-    QuestionSchema,
-    ThemeIdSchema,
-    ThemeListSchema,
-    ThemeSchema,
+    ThemeAddRequestSchema,
+    ThemeAddResponseSchema,
+    ThemeListResponseSchema,
+    ThemeUpdateRequestSchema,
+    ThemeUpdateResponseSchema,
+    ThemeDeleteRequestSchema,
+    ThemeDeleteResponseSchema,
+
+    QuestionAddRequestSchema,
+    QuestionAddResponseSchema,
+    QuestionListRequestSchema,
+    QuestionListResponseSchema,
+    QuestionUpdateRequestSchema,
+    QuestionUpdateResponseSchema,
+    QuestionDeleteRequestSchema,
+    QuestionDeleteResponseSchema,
+
 )
 from app.web.app import View
 from app.web.mixins import AuthRequiredMixin
@@ -15,14 +34,14 @@ from app.web.utils import json_response
 
 class ThemeAddView(AuthRequiredMixin, View):
     @docs(tags=["quiz"], summary="add new theme")
-    @request_schema(ThemeSchema)
-    @response_schema(ThemeSchema)
+    @request_schema(ThemeAddRequestSchema)
+    @response_schema(ThemeAddResponseSchema)
     async def post(self):
         if not await self.store.quizzes.get_theme_by_title(self.data["title"]):
             theme = await self.store.quizzes.create_theme(
                 title=self.data["title"],
             )
-            return json_response(data=ThemeSchema().dump(theme))
+            return json_response(data=ThemeAddResponseSchema().dump(theme))
         else:
             raise HTTPConflict(
                 text="This title already exist. Provide unique theme",
@@ -31,16 +50,53 @@ class ThemeAddView(AuthRequiredMixin, View):
 
 class ThemeListView(AuthRequiredMixin, View):
     @docs(tags=["quiz"], summary="get themes list")
-    @response_schema(ThemeListSchema)
+    @response_schema(ThemeListResponseSchema)
     async def get(self):
         themes = await self.store.quizzes.list_themes()
-        return json_response(data=ThemeListSchema().dump({"themes": themes}))
+        return json_response(
+            data=ThemeListResponseSchema().dump({"themes": themes}))
+
+
+class ThemeUpdateView(AuthRequiredMixin, View):
+    @docs(tags=["quiz"], summary="edit theme title")
+    @request_schema(ThemeUpdateRequestSchema)
+    @response_schema(ThemeUpdateResponseSchema)
+    async def patch(self):
+        theme = await self.request.app.store.quizzes.edit_theme_by_id(
+            id_=self.data["id"], title=self.data["title"]
+        )
+        if not theme:
+            raise HTTPNotFound(
+                text=f"theme with id {self.data['id']} "
+                     f"doesn't exist. Provide correct theme_id"
+            )
+        return json_response(ThemeUpdateResponseSchema().dump(theme))
+
+
+class ThemeDeleteView(AuthRequiredMixin, View):
+    @docs(tags=["quiz"], summary="delete theme")
+    @request_schema(ThemeDeleteRequestSchema)
+    @response_schema(ThemeDeleteResponseSchema)
+    async def delete(self):
+        theme = await self.request.app.store.quizzes.delete_theme_by_id(
+            id_=self.data["theme_id"]
+        )
+        if not theme:
+            raise HTTPNotFound(
+                text=f"theme with id {self.data['theme_id']} "
+                     f"doesn't exist. Provide correct theme_id"
+            )
+        return json_response(ThemeDeleteResponseSchema().dump(theme))
 
 
 class QuestionAddView(AuthRequiredMixin, View):
-    @docs(tags=["quiz"], summary="add new question")
-    @request_schema(QuestionSchema)
-    @response_schema(QuestionSchema)
+    @docs(
+        tags=["quiz"],
+        summary="add new question",
+        description="param answer must be single word, param cost must be one "
+                    "of 100,200,300,400,500")
+    @request_schema(QuestionAddRequestSchema)
+    @response_schema(QuestionAddResponseSchema)
     async def post(self):
         theme = await self.request.app.store.quizzes.get_theme_by_id(
             self.data["theme_id"],
@@ -48,7 +104,7 @@ class QuestionAddView(AuthRequiredMixin, View):
         if not theme:
             raise HTTPNotFound(
                 text="Theme id does not exist. "
-                "Get available theme ids by /quiz.list_themes endpoint"
+                     "Get available theme ids by /quiz.list_themes endpoint"
             )
         question = await self.request.app.store.quizzes.get_question_by_title(
             title=self.data["title"],
@@ -61,16 +117,16 @@ class QuestionAddView(AuthRequiredMixin, View):
         question = await self.request.app.store.quizzes.create_question(
             title=self.data["title"],
             theme_id=self.data["theme_id"],
-            answers=self.data["answer"],
+            answer=self.data["answer"],
             cost=self.data["cost"],
         )
-        return json_response(QuestionSchema().dump(question))
+        return json_response(QuestionAddResponseSchema().dump(question))
 
 
 class QuestionListView(AuthRequiredMixin, View):
     @docs(tags=["quiz"], summary="get list of questions")
-    @querystring_schema(ThemeIdSchema)
-    @response_schema(ListQuestionSchema)
+    @querystring_schema(QuestionListRequestSchema)
+    @response_schema(QuestionListResponseSchema)
     async def get(self):
         theme_id = self.request.query.get("theme_id")
         if theme_id:
@@ -81,9 +137,53 @@ class QuestionListView(AuthRequiredMixin, View):
             if not questions:
                 raise HTTPNotFound
 
-            return json_response(ListQuestionSchema().dump({"questions": questions}))
+            return json_response(
+                QuestionListResponseSchema().dump({"questions": questions}))
         # return all questions
         questions = await self.request.app.store.quizzes.list_questions()
         if not questions:
-            return json_response(ListQuestionSchema().dump({"questions": []}))
-        return json_response(ListQuestionSchema().dump({"questions": questions}))
+            return json_response(
+                QuestionListResponseSchema().dump({"questions": []}))
+        return json_response(
+            QuestionListResponseSchema().dump({"questions": questions}))
+
+
+class QuestionUpdateView(AuthRequiredMixin, View):
+    @docs(tags=["quiz"], summary="update question data")
+    @request_schema(QuestionUpdateRequestSchema)
+    @response_schema(QuestionUpdateResponseSchema)
+    async def patch(self):
+        question_id = self.data.pop("id")
+        try:
+            question = await self.request.app.store.quizzes.edit_question_by_id(
+                id_=question_id, **self.data
+            )
+            if not question:
+                raise HTTPNotFound(
+                    text=f"question with id {question_id} "
+                         f"doesn't exist. Provide correct question id"
+                )
+
+        except IntegrityError:
+            raise HTTPNotFound(
+                text=f"question with theme_id {self.data['theme_id']} "
+                     f"doesn't exist. Provide correct theme_id"
+            )
+
+        return json_response(QuestionUpdateResponseSchema().dump(question))
+
+
+class QuestionDeleteView(AuthRequiredMixin, View):
+    @docs(tags=["quiz"], summary="update question data")
+    @request_schema(QuestionDeleteRequestSchema)
+    @response_schema(QuestionDeleteResponseSchema)
+    async def delete(self):
+        question = await self.request.app.store.quizzes.delete_question_by_id(
+            self.data["question_id"]
+        )
+        if not question:
+            raise HTTPNotFound(
+                text=f"question with id {self.data['question_id']} "
+                     f"doesn't exist. Provide correct question id"
+            )
+        return json_response(QuestionDeleteResponseSchema().dump(question))

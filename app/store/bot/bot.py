@@ -346,7 +346,11 @@ class Bot:
         вопрос.
         """
         group_owner = await self._get_group_creator()
-        if self.update.callback_query.from_.id == group_owner.user.id:
+        registered_players = await self.app.store.game.get_game_players(
+            chat_id=self._get_chat_id()
+        )
+        if self.update.callback_query.from_.id == group_owner.user.id and \
+                len(registered_players) != 0:
             chat_id = self._get_chat_id()
             await self.app.store.tg_api.delete_message(
                 message=self.update.callback_query.message
@@ -372,7 +376,12 @@ class Bot:
                 is_chooser=True
             )
             await self.send_question_keyboard()
-
+        elif self.update.callback_query.from_.id == group_owner.user.id and \
+                len(registered_players) == 0:
+            await self.show_alert(
+                f"Количество зарегистрированных игроков "
+                f"{len(registered_players)} нужен хотя бы 1 игрок для начала."
+            )
         else:
             nickname = group_owner.user.username if group_owner.user.username \
                 else group_owner.user.first_name

@@ -65,8 +65,8 @@ class Message:
     text: str | None = None
     entities: list[MessageEntity] | None = None
     poll: Poll | None = None
-    new_chat_member: User = None
-    left_chat_member: User = None
+    new_chat_member: User | None = None
+    left_chat_member: User | None = None
 
 
 @dataclass

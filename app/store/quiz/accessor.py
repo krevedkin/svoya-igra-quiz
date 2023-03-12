@@ -1,7 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.base.base_accessor import BaseAccessor
@@ -49,35 +48,12 @@ class QuizAccessor(BaseAccessor):
 
         return [Theme(id=row.id, title=row.title) for row in result]
 
-    # async def create_answers(
-    #     self, question_id: int, answers: list[Answer]
-    # ) -> list[Answer]:
-    #     answer_models = [
-    #         AnswerModel(
-    #             is_correct=answer.is_correct,
-    #             title=answer.title,
-    #             question_id=question_id,
-    #         )
-    #         for answer in answers
-    #     ]
-
-    # async with self.app.database.session() as session:
-    #     session: AsyncSession
-    #     session.add_all(answer_models)
-    #     await session.commit()
-    #     for answer in answer_models:
-    #         await session.refresh(answer)
-    # return [
-    #     Answer(title=model.title, is_correct=model.is_correct)
-    #     for model in answer_models
-    # ]
-
     async def create_question(
-        self,
-        title: str,
-        theme_id: int,
-        answer: str,
-        cost: int,
+            self,
+            title: str,
+            theme_id: int,
+            answer: str,
+            cost: int,
     ) -> Question:
         question = QuestionModel(
             title=title, theme_id=theme_id, answer=answer, cost=cost
@@ -101,16 +77,11 @@ class QuizAccessor(BaseAccessor):
             row = await session.execute(
                 select(QuestionModel)
                 .where(QuestionModel.title == title)
-                .options(selectinload(QuestionModel.answers))
             )
             row = row.scalars().first()
             if not row:
                 return None
 
-            # answers = [
-            #     Answer(title=answer.title, is_correct=answer.is_correct)
-            #     for answer in row.answers
-            # ]
         return Question(
             title=row.title,
             id=row.id,
@@ -137,14 +108,37 @@ class QuizAccessor(BaseAccessor):
                 cost=row.cost,
             )
 
+    async def edit_question_by_id(self, id_: int, **kwargs) -> Question | None:
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                update(QuestionModel)
+                .values(**kwargs)
+                .where(QuestionModel.id == id_)
+                .returning(QuestionModel)
+            )
+
+            res = await session.execute(stmt)
+            await session.commit()
+            question = res.fetchone()
+            if question:
+                return Question(
+                    id=question.id,
+                    title=question.title,
+                    theme_id=question.theme_id,
+                    answer=question.answer,
+                    cost=question.cost,
+                )
+
     async def list_questions(
-        self, theme_id: Optional[int] = None
+            self, theme_id: Optional[int] = None
     ) -> Optional[list[Question]]:
         async with self.app.database.session() as session:
             session: AsyncSession
             if theme_id:
                 query = await session.execute(
-                    select(QuestionModel).where(QuestionModel.theme_id == theme_id)
+                    select(QuestionModel).where(
+                        QuestionModel.theme_id == theme_id)
                 )
             else:
                 query = await session.execute(select(QuestionModel))
@@ -165,16 +159,3 @@ class QuizAccessor(BaseAccessor):
                 )
 
             return result
-
-    # async def get_answer_by_title(self, title: str) -> Answer | None:
-    #     async with self.app.database.session() as session:
-    #         session: AsyncSession
-    #
-    #         query = select(AnswerModel).where(AnswerModel.title == title)
-    #
-    #         result = await session.execute(query)
-    #         result = result.scalars().first()
-    #
-    #         if not result:
-    #             return None
-    #         return Answer(is_correct=result.is_correct, title=result.title)

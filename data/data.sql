@@ -127,6 +127,8 @@ insert into questions values
 (100, 'Назовите валюту Мексики', 10, 'Песо',500);
 
 
+ALTER SEQUENCE questions_id_seq RESTART WITH 101;
+ALTER SEQUENCE themes_id_seq RESTART WITH 11;
 
 
 

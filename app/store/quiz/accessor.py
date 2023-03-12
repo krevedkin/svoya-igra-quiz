@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.base.base_accessor import BaseAccessor
@@ -47,6 +47,45 @@ class QuizAccessor(BaseAccessor):
             result = await session.scalars(stmt)
 
         return [Theme(id=row.id, title=row.title) for row in result]
+
+    async def edit_theme_by_id(self, id_: int, title: str) -> Theme | None:
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                update(ThemeModel)
+                .values(title=title)
+                .where(ThemeModel.id == id_)
+                .returning(ThemeModel)
+            )
+
+            res = await session.execute(stmt)
+            await session.commit()
+            theme = res.fetchone()
+            if theme:
+                return Theme(
+                    id=theme.id,
+                    title=theme.title,
+
+                )
+
+    async def delete_theme_by_id(self, id_: int) -> Theme | None:
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                delete(ThemeModel)
+                .where(ThemeModel.id == id_)
+                .returning(ThemeModel)
+            )
+
+            res = await session.execute(stmt)
+            await session.commit()
+
+            theme = res.fetchone()
+            if theme:
+                return Theme(
+                    id=theme.id,
+                    title=theme.title,
+                )
 
     async def create_question(
             self,
@@ -120,6 +159,28 @@ class QuizAccessor(BaseAccessor):
 
             res = await session.execute(stmt)
             await session.commit()
+            question = res.fetchone()
+            if question:
+                return Question(
+                    id=question.id,
+                    title=question.title,
+                    theme_id=question.theme_id,
+                    answer=question.answer,
+                    cost=question.cost,
+                )
+
+    async def delete_question_by_id(self, id_: int) -> Question | None:
+        async with self.app.database.session() as session:
+            session: AsyncSession
+            stmt = (
+                delete(QuestionModel)
+                .where(QuestionModel.id == id_)
+                .returning(QuestionModel)
+            )
+
+            res = await session.execute(stmt)
+            await session.commit()
+
             question = res.fetchone()
             if question:
                 return Question(

@@ -4,7 +4,7 @@ from aiohttp_apispec import (
 )
 
 from app.game.schemes import DeleteFinishedGameRequestSchema, \
-    DeleteFinishedGameResponseSchema
+    DeleteFinishedGameResponseSchema, FinishedGameListSchema
 from app.web.app import View
 from app.web.mixins import AuthRequiredMixin
 from app.web.utils import json_response
@@ -12,10 +12,11 @@ from app.web.utils import json_response
 
 class FinishedGameListView(AuthRequiredMixin, View):
     @docs(tags=["games"], summary="get finished games list")
+    @response_schema(FinishedGameListSchema)
     async def get(self):
         finished_games = await self.request.app.store.game.get_finished_games()
         return json_response(
-            data=finished_games)
+            FinishedGameListSchema().dump({"finished_games": finished_games}))
 
 
 class FinishedGameDeleteView(AuthRequiredMixin, View):
@@ -24,13 +25,13 @@ class FinishedGameDeleteView(AuthRequiredMixin, View):
     @response_schema(DeleteFinishedGameResponseSchema)
     async def delete(self):
         game = await self.request.app.store.game.delete_finished_game_by_id(
-            id_=self.data["game_id"]
+            id_=self.data["id"]
         )
         if not game:
             raise HTTPNotFound(
-                text=f"theme with id {self.data['game_id']} "
+                text=f"game with id {self.data['id']} "
                      f"doesn't exist or game is not finished."
-                     f" Provide correct game_id"
+                     f" Provide correct id"
             )
-        return json_response(DeleteFinishedGameResponseSchema().dump(game))
-
+        return json_response(
+            DeleteFinishedGameResponseSchema().dump(game))

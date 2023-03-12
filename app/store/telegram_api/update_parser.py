@@ -1,3 +1,4 @@
+from enum import Enum
 from app.store.telegram_api.dataclasses import (
     User,
     PollOption,
@@ -11,6 +12,24 @@ from app.store.telegram_api.dataclasses import (
     ChatMemberAdministrator,
     ChatMember,
 )
+
+
+class TgTypes(Enum):
+    MESSAGE = "message"
+    CALLBACK_QUERY = "callback_query"
+    POLL = "poll"
+    POLL_ANSWER = "poll_answer"
+    USERNAME = "username"
+    FIRST_NAME = "first_name"
+    LAST_NAME = "last_name"
+    FROM = "from"
+    TEXT = "text"
+    ENTITIES = "entities"
+    NEW_CHAT_MEMBER = "new_chat_member"
+    LEFT_CHAT_MEMBER = "left_chat_member"
+    INLINE_MESSAGE_ID = "inline_message_id"
+    CHAT_INSTANCE = "chat_instance"
+    DATA = "data"
 
 
 class RequestResponseParser:
@@ -133,17 +152,20 @@ class RequestResponseParser:
 
         if "entities" in message:
             _message.entities = [
-                self.parse_message_entity(entinity) for entinity in message["entities"]
+                self.parse_message_entity(entinity) for entinity in
+                message["entities"]
             ]
 
         if "poll" in message:
             _message.poll = self.parse_poll(message["poll"])
 
         if "new_chat_member" in message:
-            _message.new_chat_member = self.parse_user(message["new_chat_member"])
+            _message.new_chat_member = self.parse_user(
+                message["new_chat_member"])
 
         if "left_chat_member" in message:
-            _message.left_chat_member = self.parse_user(message["left_chat_member"])
+            _message.left_chat_member = self.parse_user(
+                message["left_chat_member"])
 
         return _message
 
@@ -155,7 +177,8 @@ class RequestResponseParser:
         )
 
         if "inline_message_id" in callback_query:
-            _callback_query.inline_message_id = callback_query["inline_message_id"]
+            _callback_query.inline_message_id = callback_query[
+                "inline_message_id"]
 
         if "chat_instance" in callback_query:
             _callback_query.chat_instance = callback_query["chat_instance"]

@@ -605,6 +605,17 @@ class Bot:
             case "/info" | "/info@SvoyaIgraQuiz_bot":
                 await self.send_info_message()
 
+            case "/themes" | "/themes@SvoyaIgraQuiz_bot":
+                theme_titles = await self.app.store.game.get_available_themes()
+
+                msg = 'Список доступных тем:\n\n'
+                for title in theme_titles:
+                    msg += title + "\n"
+
+                await self.send_message(
+                    text=msg
+                )
+
     async def handle_callback_query(self):
         """
         Метод для работы с событиями нажатия на inline кнопки.

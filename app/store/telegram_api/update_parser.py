@@ -40,21 +40,26 @@ class RequestResponseParser:
 
     def parse_update(self, update: dict) -> Update:
         _update = Update(update_id=update["update_id"])
-
-        if "message" in update:
-            message = self.parse_message(update["message"])
+        if TgTypes.MESSAGE.value in update:
+            message = self.parse_message(
+                update[TgTypes.MESSAGE.value]
+            )
             _update.message = message
 
-        if "callback_query" in update:
-            callback_query = self.parse_callback_query(update["callback_query"])
+        if TgTypes.CALLBACK_QUERY.value in update:
+            callback_query = self.parse_callback_query(
+                update[TgTypes.CALLBACK_QUERY.value]
+            )
             _update.callback_query = callback_query
 
-        if "poll" in update:
-            poll = self.parse_poll(update["poll"])
+        if TgTypes.POLL.value in update:
+            poll = self.parse_poll(update[TgTypes.POLL.value])
             _update.poll = poll
 
-        if "poll_answer" in update:
-            poll_answer = self.parse_poll_answer(update["poll_answer"])
+        if TgTypes.POLL_ANSWER.value in update:
+            poll_answer = self.parse_poll_answer(
+                update[TgTypes.POLL_ANSWER.value]
+            )
             _update.poll = poll_answer
 
         return _update
@@ -64,10 +69,10 @@ class RequestResponseParser:
         _user = User(
             id=user["id"], is_bot=user["is_bot"], first_name=user["first_name"]
         )
-        if "last_name" in user:
-            _user.last_name = user["last_name"]
-        if "username" in user:
-            _user.username = user["username"]
+        if TgTypes.LAST_NAME.value in user:
+            _user.last_name = user[TgTypes.LAST_NAME.value]
+        if TgTypes.USERNAME.value in user:
+            _user.username = user[TgTypes.USERNAME.value]
 
         return _user
 
@@ -90,13 +95,13 @@ class RequestResponseParser:
 
         return _poll_option
 
-    def parse_poll_answer(self, poll_answer: dict):
+    def parse_poll_answer(self, poll_answer: dict) -> PollAnswer:
         _poll_answer = PollAnswer(
             poll_id=poll_answer["poll_id"],
             user=self.parse_user(poll_answer["user"]),
             option_ids=poll_answer["option_ids"],
         )
-        return poll_answer
+        return _poll_answer
 
     def parse_poll(self, poll: dict) -> Poll:
         options = [self.parse_poll_option(option) for option in poll["options"]]
@@ -117,14 +122,14 @@ class RequestResponseParser:
     def parse_chat(chat: dict) -> Chat:
         _chat = Chat(id=chat["id"], type=chat["type"])
 
-        if "username" in chat:
-            _chat.username = chat["username"]
+        if TgTypes.USERNAME.value in chat:
+            _chat.username = chat[TgTypes.USERNAME.value]
 
-        if "first_name" in chat:
-            _chat.first_name = chat["first_name"]
+        if TgTypes.FIRST_NAME.value in chat:
+            _chat.first_name = chat[TgTypes.FIRST_NAME.value]
 
-        if "last_name" in chat:
-            _chat.last_name = chat["last_name"]
+        if TgTypes.LAST_NAME.value in chat:
+            _chat.last_name = chat[TgTypes.LAST_NAME.value]
 
         return _chat
 
@@ -144,28 +149,28 @@ class RequestResponseParser:
             chat=self.parse_chat(message["chat"]),
         )
 
-        if "from" in message:
-            _message.from_ = self.parse_user(message["from"])
+        if TgTypes.FROM.value in message:
+            _message.from_ = self.parse_user(message[TgTypes.FROM.value])
 
-        if "text" in message:
-            _message.text = message["text"]
+        if TgTypes.TEXT.value in message:
+            _message.text = message[TgTypes.TEXT.value]
 
-        if "entities" in message:
+        if TgTypes.ENTITIES.value in message:
             _message.entities = [
                 self.parse_message_entity(entinity) for entinity in
-                message["entities"]
+                message[TgTypes.ENTITIES.value]
             ]
 
-        if "poll" in message:
-            _message.poll = self.parse_poll(message["poll"])
+        if TgTypes.POLL.value in message:
+            _message.poll = self.parse_poll(message[TgTypes.POLL.value])
 
-        if "new_chat_member" in message:
+        if TgTypes.NEW_CHAT_MEMBER.value in message:
             _message.new_chat_member = self.parse_user(
-                message["new_chat_member"])
+                message[TgTypes.NEW_CHAT_MEMBER.value])
 
-        if "left_chat_member" in message:
+        if TgTypes.LEFT_CHAT_MEMBER.value in message:
             _message.left_chat_member = self.parse_user(
-                message["left_chat_member"])
+                message[TgTypes.LEFT_CHAT_MEMBER.value])
 
         return _message
 
@@ -176,15 +181,17 @@ class RequestResponseParser:
             message=self.parse_message(callback_query["message"]),
         )
 
-        if "inline_message_id" in callback_query:
+        if TgTypes.INLINE_MESSAGE_ID.value in callback_query:
             _callback_query.inline_message_id = callback_query[
-                "inline_message_id"]
+                TgTypes.INLINE_MESSAGE_ID.value
+            ]
 
-        if "chat_instance" in callback_query:
-            _callback_query.chat_instance = callback_query["chat_instance"]
+        if TgTypes.CHAT_INSTANCE.value in callback_query:
+            _callback_query.chat_instance = callback_query[
+                TgTypes.CHAT_INSTANCE.value]
 
-        if "data" in callback_query:
-            _callback_query.data = callback_query["data"]
+        if TgTypes.DATA.value in callback_query:
+            _callback_query.data = callback_query[TgTypes.DATA.value]
 
         return _callback_query
 

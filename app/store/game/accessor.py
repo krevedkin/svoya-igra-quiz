@@ -385,7 +385,7 @@ class GameAccessor(BaseAccessor):
                 .group_by(ThemeModel.id)
                 .having(func.count(QuestionModel.cost.distinct()) >= 5)
                 .order_by(func.random())
-                .limit(1)
+                .limit(5)
             )
             result = await session.execute(stmt)
             random_themes = [i for i in result.scalars()]
@@ -403,7 +403,7 @@ class GameAccessor(BaseAccessor):
                 stmt = (
                     select(subquery)
                     .order_by(func.random())
-                    .limit(1)
+                    .limit(5)
                 )
                 result = await session.execute(stmt)
                 for q in result.fetchall():

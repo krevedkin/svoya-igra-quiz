@@ -282,6 +282,25 @@ class GameAccessor(BaseAccessor):
                 is_answering=result.is_answering
             )
 
+    async def get_available_themes(self) -> list[str]:
+        """
+        Метод для получения списка тем, которые могут появиться в игре.
+        Возвращает только те темы, у которых есть по крайней мере 5 вопросов
+        стоимости которых формируют группу 100,200,300,400,500
+        """
+        async with self.app.database.session() as session:
+            session: AsyncSession
+
+            stmt = (
+                select(ThemeModel.title)
+                .join(QuestionModel)
+                .group_by(ThemeModel.id)
+                .having(func.count(QuestionModel.cost.distinct()) >= 5)
+                .order_by(ThemeModel.id)
+            )
+            result = await session.execute(stmt)
+            return [theme for theme in result.scalars()]
+
     async def generate_game_questions(self, chat_id: int):
         """
             Метод для генерирования вопросов игры.

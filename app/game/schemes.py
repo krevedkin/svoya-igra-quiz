@@ -1,12 +1,21 @@
 from marshmallow import Schema, fields
 
 
-class DeleteFinishedGameRequestSchema(Schema):
-    game_id = fields.Int(required=True)
-
-
-class DeleteFinishedGameResponseSchema(DeleteFinishedGameRequestSchema):
+class FinishedGameSchema(Schema):
     id = fields.Int()
     created_at = fields.DateTime()
-    is_finished = fields.Bool()
-    chat_id = fields.Integer()
+    players_and_scores = fields.Dict()
+
+
+class FinishedGameListSchema(Schema):
+    finished_games = fields.Nested(FinishedGameSchema, many=True)
+
+
+class DeleteFinishedGameRequestSchema(FinishedGameSchema):
+    class Meta:
+        fields = ('id',)
+
+
+class DeleteFinishedGameResponseSchema(FinishedGameSchema):
+    class Meta:
+        exclude = ('players_and_scores',)

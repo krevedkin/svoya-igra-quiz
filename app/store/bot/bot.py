@@ -32,6 +32,13 @@ class Commands(Enum):
     THEMES = "/themes", "/themes@SvoyaIgraQuiz_bot"
 
 
+class CallbackQueryDatas(Enum):
+    CONFIRM_GAME_START = "confirm_game_start"
+    REGISTER_NEW_PLAYER = "register_new_player"
+    READY_TO_ANSWER = "ready_to_answer"
+    NULL = "null"
+
+
 class Bot:
 
     def __init__(self, app: "Application"):

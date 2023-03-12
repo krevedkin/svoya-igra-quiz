@@ -24,6 +24,14 @@ class Emoji(Enum):
     CHECK_MARK = "\U00002705"
 
 
+class Commands(Enum):
+    START = "/start", "/start@SvoyaIgraQuiz_bot"
+    START_GAME = "/start_game", "/start_game@SvoyaIgraQuiz_bot"
+    STOP_GAME = "/stop_game", "/stop_game@SvoyaIgraQuiz_bot"
+    INFO = "/info", "/info@SvoyaIgraQuiz_bot"
+    THEMES = "/themes", "/themes@SvoyaIgraQuiz_bot"
+
+
 class Bot:
 
     def __init__(self, app: "Application"):
@@ -660,8 +668,9 @@ class Bot:
                     # null сделан для того, чтобы если пользователь нажмет на
                     # кнопку которая представляет тему, ему было понятно что на
                     # нее жать не надо :)
-                    await self.show_alert("Для того чтобы выбрать вопрос нажмите "
-                                          "на цифру под темой")
+                    await self.show_alert(
+                        "Для того чтобы выбрать вопрос нажмите "
+                        "на цифру под темой")
         except Exception as e:
             await self.show_alert(
                 "Эта игра уже закончилась и больше не доступна"

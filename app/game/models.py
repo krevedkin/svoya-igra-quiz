@@ -20,7 +20,7 @@ class Game:
     id: int
     created_at: datetime
     is_finished: bool
-    chat_id: int
+    chat_id: int | None
 
 
 @dataclass
@@ -33,8 +33,8 @@ class Player:
 @dataclass
 class GPlayer(Player):
     score: int
-    is_answering: bool
-    is_question_chooser: bool
+    is_answering: bool | None
+    is_question_chooser: bool | None
 
 
 @dataclass

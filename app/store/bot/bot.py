@@ -143,9 +143,8 @@ class Bot:
             chat_id=chat_id,
             is_finished=True
         )
-
-        await self.app.store.game.delete_game(
-            chat_id=chat_id
+        await self.app.store.game.delete_game_chat_id(
+            chat_id=self._get_chat_id()
         )
 
     async def stop_game(self):
@@ -631,25 +630,40 @@ class Bot:
         Нужен для использования в BotManager.
         """
         data = self.update.callback_query.data
+        game = await self.app.store.game.get_game(
+            chat_id=self._get_chat_id()
+        )
+        if not game:
+            await self.show_alert(
+                "Эта игра уже закончилась и больше не доступна"
+            )
+            return
+
         try:
             # это нужно для того, чтобы понять что callback_data, является id
             # вопроса и в таком случае отправить в чат вопрос
             data = int(data)
         except ValueError:
             ...
-        match data:
-            case int():
-                await self.send_question(data)
-            case "confirm_game_start":
-                await self.confirm_game_start()
-            case "register_new_player":
-                await self.create_player()
-            case "ready_to_answer":
-                await self.ask_for_answer()
+        try:
+            match data:
+                case int():
+                    await self.send_question(data)
+                case "confirm_game_start":
+                    await self.confirm_game_start()
+                case "register_new_player":
+                    await self.create_player()
+                case "ready_to_answer":
+                    await self.ask_for_answer()
 
-            case "null":
-                # null сделан для того, чтобы если пользователь нажмет на кнопку
-                # которая представляет тему, ему было понятно что на нее жать
-                # не надо :)
-                await self.show_alert("Для того чтобы выбрать вопрос нажмите "
-                                      "на цифру под темой")
+                case "null":
+                    # null сделан для того, чтобы если пользователь нажмет на
+                    # кнопку которая представляет тему, ему было понятно что на
+                    # нее жать не надо :)
+                    await self.show_alert("Для того чтобы выбрать вопрос нажмите "
+                                          "на цифру под темой")
+        except Exception as e:
+            await self.show_alert(
+                "Эта игра уже закончилась и больше не доступна"
+            )
+            self.logger.exception(e)

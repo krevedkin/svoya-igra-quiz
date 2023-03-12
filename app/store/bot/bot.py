@@ -595,42 +595,41 @@ class Bot:
         """
         command = self._parse_command()
 
-        match command:
-            case "/start" | "/start@SvoyaIgraQuiz_bot":
+        if command in Commands.START.value:
+            await self.send_message(
+                text="Для начала игры добавьте бота в группу, после чего\n"
+                     "Обязательно сделайте его администратором группы.\n"
+                     "Это нужно чтобы он мог видеть сообщения с ответами\n"
+                     "Пользователей.\n"
+                     "Далее введите команду /start_game или выберете эту\n"
+                     "команду в меню бота, чтобы начать игру"
+            )
+        elif command in Commands.START_GAME.value:
+            if self._check_is_message_from_group():
+                await self.start_game()
+            else:
                 await self.send_message(
-                    text="Для начала игры добавьте бота в группу, после чего\n"
-                         "Обязательно сделайте его администратором группы.\n"
-                         "Это нужно чтобы он мог видеть сообщения с ответами\n"
-                         "Пользователей.\n"
-                         "Далее введите команду /start_game или выберете эту\n"
-                         "команду в меню бота, чтобы начать игру"
+                    "Для того чтобы играть, добавьте бота в группу"
+                    " и сделайте админом."
                 )
-            case "/start_game" | "/start_game@SvoyaIgraQuiz_bot":
-                if self._check_is_message_from_group():
-                    await self.start_game()
-                else:
-                    await self.send_message(
-                        "Для того чтобы играть, добавьте бота в группу"
-                        " и сделайте админом."
-                    )
 
-            case "/stop_game" | "/stop_game@SvoyaIgraQuiz_bot":
-                if self._check_is_message_from_group():
-                    await self.stop_game()
+        elif command in Commands.STOP_GAME.value:
+            if self._check_is_message_from_group():
+                await self.stop_game()
 
-            case "/info" | "/info@SvoyaIgraQuiz_bot":
-                await self.send_info_message()
+        elif command in Commands.INFO.value:
+            await self.send_info_message()
 
-            case "/themes" | "/themes@SvoyaIgraQuiz_bot":
-                theme_titles = await self.app.store.game.get_available_themes()
+        elif command in Commands.THEMES.value:
+            theme_titles = await self.app.store.game.get_available_themes()
 
-                msg = 'Список доступных тем:\n\n'
-                for title in theme_titles:
-                    msg += title + "\n"
+            msg = 'Список доступных тем:\n\n'
+            for title in theme_titles:
+                msg += title + "\n"
 
-                await self.send_message(
-                    text=msg
-                )
+            await self.send_message(
+                text=msg
+            )
 
     async def handle_callback_query(self):
         """

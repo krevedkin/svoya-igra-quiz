@@ -14,15 +14,15 @@ class Poller:
         self.poll_task: Optional[Task] = None
         self.logger = getLogger("Poller")
 
-    async def start(self):
+    async def start(self) -> None:
         self.is_running = True
         self.poll_task = asyncio.create_task(self.poll())
 
-    async def stop(self):
+    async def stop(self) -> None:
         self.is_running = False
         await self.poll_task
 
-    async def poll(self):
+    async def poll(self) -> None:
         while self.is_running:
             try:
                 updates = await self.store.tg_api.poll()

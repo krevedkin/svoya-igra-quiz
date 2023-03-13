@@ -1,5 +1,4 @@
 from marshmallow import Schema, fields, validates, ValidationError
-from marshmallow.validate import Length
 
 
 class ThemeSchema(Schema):
@@ -7,45 +6,60 @@ class ThemeSchema(Schema):
     title = fields.Str(required=True)
 
 
+class ThemeAddRequestSchema(ThemeSchema):
+    class Meta:
+        exclude = ("id",)
+
+
+class ThemeListResponseSchema(Schema):
+    themes = fields.Nested(ThemeSchema, many=True)
+
+
+class ThemeDeleteRequestSchema(Schema):
+    theme_id = fields.Int()
+
+
 class QuestionSchema(Schema):
     id = fields.Int(required=False)
     title = fields.Str(required=True)
     theme_id = fields.Int(required=True)
-    answers = fields.Nested(
-        "AnswerSchema", many=True, required=True, validate=Length(min=2)
-    )
+    answer = fields.Str(required=True)
+    cost = fields.Int(required=True)
 
-    @validates("answers")
-    def validate_has_true_answer(self, answers):
-        if not any([answer["is_correct"] for answer in answers]):
+    @validates("answer")
+    def validate_answer_is_one_word(self, answer):
+        answer = answer.split()
+        if len(answer) != 1:
             raise ValidationError(
-                "There is no correct answer. "
-                "Provide is_correct field as true in one answer"
+                "Answer must be single word. "
+                "Provide correct value."
             )
 
-    @validates("answers")
-    def validate_has_only_one_correct_answer(self, answers):
-        bool_fields = [answer["is_correct"] for answer in answers]
-        true_answers = list(filter(lambda x: x is True, bool_fields))
-        if len(true_answers) > 1:
+    @validates("cost")
+    def validate_cost_in_range_of_costs(self, cost):
+        if cost not in [100, 200, 300, 400, 500]:
             raise ValidationError(
-                "There is more than one correct answer. "
-                "Only one answer can be correct"
+                "Cost value must be one of 100,200,300,400,500. "
+                "Provide correct value."
             )
 
 
-class AnswerSchema(Schema):
-    title = fields.Str(required=True)
-    is_correct = fields.Bool(required=True)
+class QuestionAddRequestSchema(QuestionSchema):
+    class Meta:
+        exclude = ("id",)
 
 
-class ThemeListSchema(Schema):
-    themes = fields.Nested(ThemeSchema, many=True)
+class QuestionListRequestSchema(ThemeDeleteRequestSchema):
+    ...
 
 
-class ThemeIdSchema(Schema):
-    theme_id = fields.Int()
-
-
-class ListQuestionSchema(Schema):
+class QuestionListResponseSchema(Schema):
     questions = fields.Nested(QuestionSchema, many=True)
+
+
+class QuestionUpdateRequestSchema(QuestionSchema):
+    id = fields.Int(required=True)
+
+
+class QuestionDeleteRequestSchema(Schema):
+    question_id = fields.Int()

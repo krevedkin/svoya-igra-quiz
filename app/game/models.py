@@ -45,6 +45,13 @@ class GameQuestion:
     cost: str
 
 
+@dataclass
+class FinishedGame:
+    id: int
+    created_at: datetime
+    players_and_scores: dict
+
+
 class GameModel(db):
     __tablename__ = "games"
     id = Column(Integer, primary_key=True)

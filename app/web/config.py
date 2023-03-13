@@ -1,7 +1,7 @@
 import typing
 from dataclasses import dataclass
 
-import yaml
+import yaml  # type: ignore
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -35,16 +35,16 @@ class DatabaseConfig:
 @dataclass
 class Config:
     admin: AdminConfig
-    session: SessionConfig = None
-    bot: BotConfig = None
-    database: DatabaseConfig = None
+    session: SessionConfig | None = None
+    bot: BotConfig | None = None
+    database: DatabaseConfig | None = None
 
 
-def setup_config(app: "Application", config_path: str):
+def setup_config(app: "Application", config_path: str) -> None:
     with open(config_path, "r") as f:
         raw_config = yaml.safe_load(f)
 
-    app.config = Config(
+    app.config = Config(  # type: ignore
         session=SessionConfig(
             key=raw_config["session"]["key"],
         ),

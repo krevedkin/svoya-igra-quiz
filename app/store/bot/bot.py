@@ -85,7 +85,7 @@ class Bot:
         type_ = self.update.message.chat.type
         return type_ == 'supergroup' or type_ == 'group'
 
-    async def send_message(self, text: str, markup: str | None = None):
+    async def send_message(self, text: str, markup: str | None = None) -> None:
         """
         Вспомогательный метод для отправки сообщения
         markup - параметр для отправки inline кнопок вместе с сообщением.
@@ -101,7 +101,7 @@ class Bot:
         await asyncio.sleep(0.1)
         await self.app.store.tg_api.send_message(**kwargs)
 
-    async def show_alert(self, text: str):
+    async def show_alert(self, text: str) -> None:
         """Вспомогательная функция для показа alert"""
         await self.app.store.tg_api.answer_callback_query(
             callback_query_id=self.update.callback_query.id, text=text,
@@ -118,7 +118,7 @@ class Bot:
         ]
         return json.dumps({"inline_keyboard": inline_markup})
 
-    async def choose_winner(self):
+    async def choose_winner(self) -> None:
         """
         Метод для определения победителя в конце игры
         В случае наличия более одного победителя объявляет ничью между ними
@@ -143,7 +143,7 @@ class Bot:
                 f"бутылочку пивка чтобы отметить :)"
             )
 
-    async def finish_game(self):
+    async def finish_game(self) -> None:
         """
         Метод для окончания игры.
         Объявляет победителя и удаляет сыгранную игру.
@@ -162,7 +162,7 @@ class Bot:
             chat_id=self._get_chat_id()
         )
 
-    async def stop_game(self):
+    async def stop_game(self) -> None:
         """
         Метод для досрочной остановки игры.
         Остановить игру может только владелец группы.
@@ -192,7 +192,7 @@ class Bot:
             await self.send_message(
                 "Игра не была создана, нечего останавливать")
 
-    async def send_question_keyboard(self):
+    async def send_question_keyboard(self) -> None:
         """
         Метод отправки игровой клавиатуры содержащей темы и стоимости вопросов
         для выбора.
@@ -223,7 +223,7 @@ class Bot:
                 markup=markup
             )
 
-    async def send_ready_button(self):
+    async def send_ready_button(self) -> None:
         """Метод для отправки кнопки Ответить"""
         await self.send_message(
             "Нажмите на кнопку если готовы отвечать",
@@ -234,7 +234,7 @@ class Bot:
             )
         )
 
-    async def send_question(self, question_id: int):
+    async def send_question(self, question_id: int) -> None:
         """
         Метод отправляет вопрос в чат после нажатия на кнопку содержащую
         стоимость вопроса.
@@ -284,7 +284,7 @@ class Bot:
 
         return user
 
-    async def create_player(self):
+    async def create_player(self) -> None:
         """Создает нового игрока, связанного с текущей игрой"""
         game = await self.app.store.game.get_game(
             chat_id=self._get_chat_id(),
@@ -321,7 +321,7 @@ class Bot:
                 "Игра не была создана, создайте игру командой /start_game"
             )
 
-    async def start_game(self):
+    async def start_game(self) -> None:
         """
         Метод для начала игры после ввода команды "/start_game"
         Создает игру в БД.
@@ -355,7 +355,7 @@ class Bot:
                      "эту игру.",
             )
 
-    async def confirm_game_start(self):
+    async def confirm_game_start(self) -> None:
         """
             Метод который непосредственно запускает игру после
         нажатия кнопки "Начать игру".
@@ -409,7 +409,7 @@ class Bot:
                 f"Начать игру может только создатель группы - @{nickname}"
             )
 
-    async def ask_for_answer(self):
+    async def ask_for_answer(self) -> None:
         """
             Метод для отправки сообщения в чат, позволяющее пользователю
         который нажал на кнопку "ответить" самым первым написать ответ
@@ -535,7 +535,7 @@ class Bot:
 
                 await self.send_ready_button()
 
-    async def handle_answer_message(self):
+    async def handle_answer_message(self) -> None:
         """
         Метод-обертка над обработкой ответа пользователя, проверяет существует
         ли "отвечающий игрок" прежде чем приступить к обработке.
@@ -548,7 +548,7 @@ class Bot:
             await self.handle_user_answer_message(
                 user_answer=self.update.message.text)
 
-    async def send_info_message(self):
+    async def send_info_message(self) -> None:
         """
         Вспомогательный метод для отправки информации о боте при команде /info
         """
@@ -600,7 +600,7 @@ class Bot:
 
         await self.send_message(text)
 
-    async def handle_command(self):
+    async def handle_command(self) -> None:
         """
         Метод для использования в BotManager
         Парсит команду из сообщения, и решает что делать с каждой из них
@@ -643,7 +643,7 @@ class Bot:
                 text=msg
             )
 
-    async def handle_callback_query(self):
+    async def handle_callback_query(self) -> None:
         """
         Метод для работы с событиями нажатия на inline кнопки.
         Нужен для использования в BotManager.

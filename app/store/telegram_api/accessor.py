@@ -10,6 +10,7 @@ from app.store.telegram_api.dataclasses import (
     ChatMemberAdministrator,
     Message,
     User,
+    ChatMember,
 )
 from app.store.telegram_api.poller import Poller
 from app.store.telegram_api.update_parser import RequestResponseParser
@@ -21,25 +22,27 @@ URL = f"https://api.telegram.org/bot"
 
 
 class TelegramApiAccessor(BaseAccessor):
-    def __init__(self, app: "Application", *args, **kwargs):
+    def __init__(self, app: "Application", *args: typing.Any,
+                 **kwargs: typing.Any):
         super().__init__(app, *args, **kwargs)
         self.session: ClientSession | None = None
         self.poller: Poller | None = None
         self.last_update: int = 0
-        self.api_path = URL + self.app.config.bot.token
+        self.api_path = URL + self.app.config.bot.token  # type: ignore
         self.parser = RequestResponseParser()
 
-    async def connect(self, app: "Application"):
+    async def connect(self, app: "Application") -> None:
         self.session = ClientSession(connector=TCPConnector(ssl=False))
-        self.poller = Poller(app.store)
+        self.poller = Poller(app.store)  # type: ignore
         self.logger.info("start polling")
         await self.poller.start()
 
-    async def disconnect(self, app: "Application"):
+    async def disconnect(self, app: "Application") -> None:
         self.logger.info("stop polling")
-        await self.session.close()
+        await self.session.close() if self.session else None
 
-    async def send_message(self, chat_id: int, text: str, **kwargs):
+    async def send_message(self, chat_id: int, text: str,
+                           **kwargs: typing.Any) -> dict:
         """Метод отправки сообщения"""
         data = {
             "chat_id": chat_id,
@@ -47,31 +50,33 @@ class TelegramApiAccessor(BaseAccessor):
         }
         if kwargs:
             data.update(kwargs)
-        async with self.session.post(
-            self.api_path + "/sendMessage", data=data
+        async with self.session.post(  # type: ignore
+                self.api_path + "/sendMessage", data=data
         ) as response:
             res = await response.json()
             return res
 
-    async def delete_message(self, message: Message):
+    async def delete_message(self, message: Message) -> dict:
         """Метод удаления сообщения"""
         data = {
             "chat_id": message.chat.id,
             "message_id": message.message_id,
         }
-        async with self.session.post(
-            self.api_path + "/deleteMessage", data=data
+        async with self.session.post(  # type: ignore
+                self.api_path + "/deleteMessage", data=data
         ) as response:
             res = await response.json()
             return res
 
-    async def get_chat_admins(self, chat_id: int) -> list[ChatMemberAdministrator]:
+    async def get_chat_admins(
+            self,
+            chat_id: int) -> list[ChatMemberAdministrator]:
         """
         Метод получения списка администраторов чата, по id чата.
         """
         data = {"chat_id": chat_id}
-        async with self.session.get(
-            self.api_path + "/getChatAdministrators", data=data
+        async with self.session.get(  # type: ignore
+                self.api_path + "/getChatAdministrators", data=data
         ) as response:
             res = await response.json()
 
@@ -82,42 +87,44 @@ class TelegramApiAccessor(BaseAccessor):
             ]
 
     async def answer_callback_query(
-        self, callback_query_id: str, text: str, show_alert: bool = False
-    ):
+            self, callback_query_id: str, text: str, show_alert: bool = False
+    ) -> dict:
         """Метод обработки callback_query для показа уведомлений в чате"""
         data = {
             "callback_query_id": callback_query_id,
             "text": text,
             "show_alert": show_alert,
         }
-        async with self.session.post(
-            self.api_path + "/answerCallbackQuery", data=data
+        async with self.session.post(  # type: ignore
+                self.api_path + "/answerCallbackQuery", data=data
         ) as response:
             res = await response.json()
             return res
 
     async def get_me(self) -> User:
-        async with self.session.get(self.api_path + "/getMe") as response:
+        async with self.session.get(  # type: ignore
+                self.api_path + "/getMe"
+        ) as response:
             result = await response.json()
             user = self.parser.parse_get_me(result["result"])
             return user
 
     async def get_chat_member(
-        self,
-        chat_id: int,
-        user_id: int,
-    ):
+            self,
+            chat_id: int,
+            user_id: int,
+    ) -> ChatMember:
         data = {"chat_id": chat_id, "user_id": user_id}
-        async with self.session.post(
-            self.api_path + "/getChatMember", data=data
+        async with self.session.post(  # type: ignore
+                self.api_path + "/getChatMember", data=data
         ) as response:
             res = await response.json()
             chat_member = self.parser.parse_chat_member(res["result"])
             return chat_member
 
     async def promote_or_demote_chat_member(
-        self, chat_id: str, user_id: str, is_promote: bool
-    ):
+            self, chat_id: str, user_id: str, is_promote: bool
+    ) -> dict:
         """
         Метод для повышения или понижения прав пользователя чата
         """
@@ -138,8 +145,8 @@ class TelegramApiAccessor(BaseAccessor):
         }
         data: dict = {"chat_id": chat_id, "user_id": user_id}
         data.update(permissions)
-        async with self.session.post(
-            self.api_path + "/restrictChatMember", data=data
+        async with self.session.post(  # type: ignore
+                self.api_path + "/restrictChatMember", data=data
         ) as response:
             res = await response.json()
 
@@ -147,26 +154,27 @@ class TelegramApiAccessor(BaseAccessor):
 
     async def poll(self) -> list[Update]:
         """Метод получения обновлений из telegram."""
-        async with self.session.get(
-            self.api_path + "/getUpdates",
-            data={
-                "timeout": 60,
-                "offset": self.last_update + 1,
-                "allowed_updates": json.dumps(
-                    [
-                        "message",
-                        "callback_query",
-                        "poll",
-                        "poll_answer",
-                        "chat_member",
-                        "my_chat_member",
-                    ]
-                ),
-            },
+        async with self.session.get(  # type: ignore
+                self.api_path + "/getUpdates",
+                data={
+                    "timeout": 60,
+                    "offset": self.last_update + 1,
+                    "allowed_updates": json.dumps(
+                        [
+                            "message",
+                            "callback_query",
+                            "poll",
+                            "poll_answer",
+                            "chat_member",
+                            "my_chat_member",
+                        ]
+                    ),
+                },
         ) as response:
             raw_response = await response.json()
             updates = [
-                self.parser.parse_update(update) for update in raw_response["result"]
+                self.parser.parse_update(update) for update in
+                raw_response["result"]
             ]
             if updates:
                 self.last_update = updates[-1].update_id

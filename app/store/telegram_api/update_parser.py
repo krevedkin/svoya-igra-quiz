@@ -195,13 +195,13 @@ class RequestResponseParser:
 
         return _callback_query
 
-    def parse_chat_administrator(self, admin: dict):
+    def parse_chat_administrator(self, admin: dict) -> ChatMemberAdministrator:
         return ChatMemberAdministrator(
             status=admin["status"], user=self.parse_user(admin["user"])
         )
 
     @staticmethod
-    def parse_get_me(get_me: dict):
+    def parse_get_me(get_me: dict) -> User:
         return User(
             id=get_me["id"],
             is_bot=get_me["is_bot"],

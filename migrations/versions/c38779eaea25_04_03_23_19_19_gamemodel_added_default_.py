@@ -1,8 +1,8 @@
-"""answering_player is varchar5
+"""04.03.23 19:19 GameModel added default None to answering_player
 
-Revision ID: ece0dbe9112e
-Revises: 134d814ff42e
-Create Date: 2023-02-26 23:22:57.553179
+Revision ID: c38779eaea25
+Revises: dcf5cc1e252e
+Create Date: 2023-03-04 19:20:03.090784
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'ece0dbe9112e'
-down_revision = '134d814ff42e'
+revision = 'c38779eaea25'
+down_revision = 'dcf5cc1e252e'
 branch_labels = None
 depends_on = None
 

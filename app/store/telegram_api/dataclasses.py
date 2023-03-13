@@ -11,6 +11,11 @@ class User:
 
 
 @dataclass
+class ChatMember(User):
+    status: str = "member"
+
+
+@dataclass
 class PollOption:
     text: str
     voter_count: int
@@ -60,6 +65,8 @@ class Message:
     text: str | None = None
     entities: list[MessageEntity] | None = None
     poll: Poll | None = None
+    new_chat_member: User | None = None
+    left_chat_member: User | None = None
 
 
 @dataclass

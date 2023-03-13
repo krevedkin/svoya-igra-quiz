@@ -36,6 +36,7 @@ class AdminLoginView(View):
 
 
 class AdminCurrentView(AuthRequiredMixin, View):
+    @docs(tags=["admin"], summary="get current logged-in admin")
     @response_schema(AdminSchema, 200)
     async def get(self):
         return json_response(

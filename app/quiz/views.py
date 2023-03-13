@@ -9,22 +9,16 @@ from aiohttp_apispec import (
 from sqlalchemy.exc import IntegrityError
 
 from app.quiz.schemes import (
+    ThemeSchema,
     ThemeAddRequestSchema,
-    ThemeAddResponseSchema,
     ThemeListResponseSchema,
-    ThemeUpdateRequestSchema,
-    ThemeUpdateResponseSchema,
     ThemeDeleteRequestSchema,
-    ThemeDeleteResponseSchema,
-
+    QuestionSchema,
     QuestionAddRequestSchema,
-    QuestionAddResponseSchema,
     QuestionListRequestSchema,
     QuestionListResponseSchema,
     QuestionUpdateRequestSchema,
-    QuestionUpdateResponseSchema,
     QuestionDeleteRequestSchema,
-    QuestionDeleteResponseSchema,
 
 )
 from app.web.app import View
@@ -35,13 +29,13 @@ from app.web.utils import json_response
 class ThemeAddView(AuthRequiredMixin, View):
     @docs(tags=["quiz"], summary="add new theme")
     @request_schema(ThemeAddRequestSchema)
-    @response_schema(ThemeAddResponseSchema)
+    @response_schema(ThemeSchema)
     async def post(self):
         if not await self.store.quizzes.get_theme_by_title(self.data["title"]):
             theme = await self.store.quizzes.create_theme(
                 title=self.data["title"],
             )
-            return json_response(data=ThemeAddResponseSchema().dump(theme))
+            return json_response(data=ThemeSchema().dump(theme))
         else:
             raise HTTPConflict(
                 text="This title already exist. Provide unique theme",
@@ -59,8 +53,8 @@ class ThemeListView(AuthRequiredMixin, View):
 
 class ThemeUpdateView(AuthRequiredMixin, View):
     @docs(tags=["quiz"], summary="edit theme title")
-    @request_schema(ThemeUpdateRequestSchema)
-    @response_schema(ThemeUpdateResponseSchema)
+    @request_schema(ThemeSchema)
+    @response_schema(ThemeSchema)
     async def patch(self):
         theme = await self.request.app.store.quizzes.edit_theme_by_id(
             id_=self.data["id"], title=self.data["title"]
@@ -70,13 +64,13 @@ class ThemeUpdateView(AuthRequiredMixin, View):
                 text=f"theme with id {self.data['id']} "
                      f"doesn't exist. Provide correct theme_id"
             )
-        return json_response(ThemeUpdateResponseSchema().dump(theme))
+        return json_response(ThemeSchema().dump(theme))
 
 
 class ThemeDeleteView(AuthRequiredMixin, View):
     @docs(tags=["quiz"], summary="delete theme")
     @request_schema(ThemeDeleteRequestSchema)
-    @response_schema(ThemeDeleteResponseSchema)
+    @response_schema(ThemeSchema)
     async def delete(self):
         theme = await self.request.app.store.quizzes.delete_theme_by_id(
             id_=self.data["theme_id"]
@@ -86,7 +80,7 @@ class ThemeDeleteView(AuthRequiredMixin, View):
                 text=f"theme with id {self.data['theme_id']} "
                      f"doesn't exist. Provide correct theme_id"
             )
-        return json_response(ThemeDeleteResponseSchema().dump(theme))
+        return json_response(ThemeSchema().dump(theme))
 
 
 class QuestionAddView(AuthRequiredMixin, View):
@@ -96,7 +90,7 @@ class QuestionAddView(AuthRequiredMixin, View):
         description="param answer must be single word, param cost must be one "
                     "of 100,200,300,400,500")
     @request_schema(QuestionAddRequestSchema)
-    @response_schema(QuestionAddResponseSchema)
+    @response_schema(QuestionSchema)
     async def post(self):
         theme = await self.request.app.store.quizzes.get_theme_by_id(
             self.data["theme_id"],
@@ -120,7 +114,7 @@ class QuestionAddView(AuthRequiredMixin, View):
             answer=self.data["answer"],
             cost=self.data["cost"],
         )
-        return json_response(QuestionAddResponseSchema().dump(question))
+        return json_response(QuestionSchema().dump(question))
 
 
 class QuestionListView(AuthRequiredMixin, View):
@@ -151,7 +145,7 @@ class QuestionListView(AuthRequiredMixin, View):
 class QuestionUpdateView(AuthRequiredMixin, View):
     @docs(tags=["quiz"], summary="update question data")
     @request_schema(QuestionUpdateRequestSchema)
-    @response_schema(QuestionUpdateResponseSchema)
+    @response_schema(QuestionSchema)
     async def patch(self):
         question_id = self.data.pop("id")
         try:
@@ -170,13 +164,13 @@ class QuestionUpdateView(AuthRequiredMixin, View):
                      f"doesn't exist. Provide correct theme_id"
             )
 
-        return json_response(QuestionUpdateResponseSchema().dump(question))
+        return json_response(QuestionSchema().dump(question))
 
 
 class QuestionDeleteView(AuthRequiredMixin, View):
     @docs(tags=["quiz"], summary="update question data")
     @request_schema(QuestionDeleteRequestSchema)
-    @response_schema(QuestionDeleteResponseSchema)
+    @response_schema(QuestionSchema)
     async def delete(self):
         question = await self.request.app.store.quizzes.delete_question_by_id(
             self.data["question_id"]
@@ -186,4 +180,4 @@ class QuestionDeleteView(AuthRequiredMixin, View):
                 text=f"question with id {self.data['question_id']} "
                      f"doesn't exist. Provide correct question id"
             )
-        return json_response(QuestionDeleteResponseSchema().dump(question))
+        return json_response(QuestionSchema().dump(question))

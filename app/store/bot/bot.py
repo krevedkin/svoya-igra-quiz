@@ -24,6 +24,21 @@ class Emoji(Enum):
     CHECK_MARK = "\U00002705"
 
 
+class Commands(Enum):
+    START = "/start", "/start@SvoyaIgraQuiz_bot"
+    START_GAME = "/start_game", "/start_game@SvoyaIgraQuiz_bot"
+    STOP_GAME = "/stop_game", "/stop_game@SvoyaIgraQuiz_bot"
+    INFO = "/info", "/info@SvoyaIgraQuiz_bot"
+    THEMES = "/themes", "/themes@SvoyaIgraQuiz_bot"
+
+
+class CallbackQueryDatas(Enum):
+    CONFIRM_GAME_START = "confirm_game_start"
+    REGISTER_NEW_PLAYER = "register_new_player"
+    READY_TO_ANSWER = "ready_to_answer"
+    NULL = "null"
+
+
 class Bot:
 
     def __init__(self, app: "Application"):
@@ -214,7 +229,7 @@ class Bot:
             "Нажмите на кнопку если готовы отвечать",
             markup=self.create_markup(
                 (
-                    ("Ответить", "ready_to_answer"),
+                    ("Ответить", CallbackQueryDatas.READY_TO_ANSWER.value),
                 )
             )
         )
@@ -323,8 +338,13 @@ class Bot:
                 text="Нажмите для регистрации",
                 markup=self.create_markup(
                     (
-                        ("Зарегистрироваться", "register_new_player"),
-                        ("Начать игру", "confirm_game_start"),
+                        (
+                            "Зарегистрироваться",
+                            CallbackQueryDatas.REGISTER_NEW_PLAYER.value),
+                        (
+                            "Начать игру",
+                            CallbackQueryDatas.CONFIRM_GAME_START.value
+                        ),
                     )
                 ),
             )
@@ -587,42 +607,41 @@ class Bot:
         """
         command = self._parse_command()
 
-        match command:
-            case "/start" | "/start@SvoyaIgraQuiz_bot":
+        if command in Commands.START.value:
+            await self.send_message(
+                text="Для начала игры добавьте бота в группу, после чего\n"
+                     "Обязательно сделайте его администратором группы.\n"
+                     "Это нужно чтобы он мог видеть сообщения с ответами\n"
+                     "Пользователей.\n"
+                     "Далее введите команду /start_game или выберете эту\n"
+                     "команду в меню бота, чтобы начать игру"
+            )
+        elif command in Commands.START_GAME.value:
+            if self._check_is_message_from_group():
+                await self.start_game()
+            else:
                 await self.send_message(
-                    text="Для начала игры добавьте бота в группу, после чего\n"
-                         "Обязательно сделайте его администратором группы.\n"
-                         "Это нужно чтобы он мог видеть сообщения с ответами\n"
-                         "Пользователей.\n"
-                         "Далее введите команду /start_game или выберете эту\n"
-                         "команду в меню бота, чтобы начать игру"
+                    "Для того чтобы играть, добавьте бота в группу"
+                    " и сделайте админом."
                 )
-            case "/start_game" | "/start_game@SvoyaIgraQuiz_bot":
-                if self._check_is_message_from_group():
-                    await self.start_game()
-                else:
-                    await self.send_message(
-                        "Для того чтобы играть, добавьте бота в группу"
-                        " и сделайте админом."
-                    )
 
-            case "/stop_game" | "/stop_game@SvoyaIgraQuiz_bot":
-                if self._check_is_message_from_group():
-                    await self.stop_game()
+        elif command in Commands.STOP_GAME.value:
+            if self._check_is_message_from_group():
+                await self.stop_game()
 
-            case "/info" | "/info@SvoyaIgraQuiz_bot":
-                await self.send_info_message()
+        elif command in Commands.INFO.value:
+            await self.send_info_message()
 
-            case "/themes" | "/themes@SvoyaIgraQuiz_bot":
-                theme_titles = await self.app.store.game.get_available_themes()
+        elif command in Commands.THEMES.value:
+            theme_titles = await self.app.store.game.get_available_themes()
 
-                msg = 'Список доступных тем:\n\n'
-                for title in theme_titles:
-                    msg += title + "\n"
+            msg = 'Список доступных тем:\n\n'
+            for title in theme_titles:
+                msg += title + "\n"
 
-                await self.send_message(
-                    text=msg
-                )
+            await self.send_message(
+                text=msg
+            )
 
     async def handle_callback_query(self) -> None:
         """
@@ -649,19 +668,20 @@ class Bot:
             match data:
                 case int():
                     await self.send_question(data)
-                case "confirm_game_start":
+                case CallbackQueryDatas.CONFIRM_GAME_START.value:
                     await self.confirm_game_start()
-                case "register_new_player":
+                case CallbackQueryDatas.REGISTER_NEW_PLAYER.value:
                     await self.create_player()
-                case "ready_to_answer":
+                case CallbackQueryDatas.READY_TO_ANSWER.value:
                     await self.ask_for_answer()
 
-                case "null":
+                case CallbackQueryDatas.NULL.value:
                     # null сделан для того, чтобы если пользователь нажмет на
                     # кнопку которая представляет тему, ему было понятно что на
                     # нее жать не надо :)
-                    await self.show_alert("Для того чтобы выбрать вопрос нажмите "
-                                          "на цифру под темой")
+                    await self.show_alert(
+                        "Для того чтобы выбрать вопрос нажмите "
+                        "на цифру под темой")
         except Exception as e:
             await self.show_alert(
                 "Эта игра уже закончилась и больше не доступна"

@@ -1,4 +1,4 @@
-from sqlalchemy import select, delete, update, func, join, text
+from sqlalchemy import select, delete, update, func, join
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.base.base_accessor import BaseAccessor
@@ -11,6 +11,7 @@ from app.game.models import (
     GamePlayer,
     GameQuestionsModel,
     GPlayer,
+    FinishedGame,
 )
 from app.quiz.models import ThemeModel, QuestionModel, Question
 
@@ -137,27 +138,37 @@ class GameAccessor(BaseAccessor):
                 chat_id=game.chat_id,
             )
 
-    async def get_finished_games(self) -> list[dict]:
+    async def get_finished_games(self) -> list[FinishedGame]:
         """Возвращает список законченных игр"""
         async with self.app.database.session() as session:
-            query = text("""
-                    SELECT games.id, games.created_at, array_agg(players.nickname) 
-                    AS player_nicknames, array_agg(game_players.score) AS scores
-                    FROM games
-                    JOIN game_players ON games.id = game_players.game_id
-                    JOIN players ON players.id = game_players.player_id
-                    WHERE games.is_finished = true
-                    GROUP BY games.id
-                """)
-            result = await session.execute(query)
-            games = []
-            for row in result:
-                game = {
-                    "id": row[0],
-                    "created_at": row[1].isoformat(),
-                    "players_and_scores": dict(zip(row[2], row[3]))
-                }
-                games.append(game)
+            query = (
+                select(
+                    GameModel.id, GameModel.created_at,
+                    func.array_agg(PlayerModel.nickname).label('nicknames'),
+                    func.array_agg(GamePlayer.score).label('scores')
+                )
+                .select_from(
+                    join(
+                        GamePlayer, PlayerModel,
+                        GamePlayer.player_id == PlayerModel.id
+                    )
+                )
+                .where(GameModel.is_finished == True)
+                .group_by(GameModel.id)
+
+            )
+            res = await session.execute(query)
+            result = res.fetchall()
+
+            games = [
+                FinishedGame(
+                    id=row.id,
+                    created_at=row.created_at,
+                    players_and_scores=dict(zip(row.nicknames, row.scores))
+                )
+                for row in result
+            ]
+
             return games
 
     async def create_player(self, nickname: str, tg_id: int) -> Player:

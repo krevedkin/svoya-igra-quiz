@@ -11,31 +11,14 @@ class ThemeAddRequestSchema(ThemeSchema):
         exclude = ("id",)
 
 
-class ThemeAddResponseSchema(ThemeSchema):
-    ...
-
-
 class ThemeListResponseSchema(Schema):
     themes = fields.Nested(ThemeSchema, many=True)
-
-
-class ThemeUpdateRequestSchema(ThemeSchema):
-    ...
-
-
-class ThemeUpdateResponseSchema(ThemeSchema):
-    ...
 
 
 class ThemeDeleteRequestSchema(Schema):
     theme_id = fields.Int()
 
 
-class ThemeDeleteResponseSchema(ThemeSchema):
-    ...
-
-
-##################################
 class QuestionSchema(Schema):
     id = fields.Int(required=False)
     title = fields.Str(required=True)
@@ -66,10 +49,6 @@ class QuestionAddRequestSchema(QuestionSchema):
         exclude = ("id",)
 
 
-class QuestionAddResponseSchema(QuestionSchema):
-    ...
-
-
 class QuestionListRequestSchema(ThemeDeleteRequestSchema):
     ...
 
@@ -82,13 +61,5 @@ class QuestionUpdateRequestSchema(QuestionSchema):
     id = fields.Int(required=True)
 
 
-class QuestionUpdateResponseSchema(QuestionSchema):
-    ...
-
-
 class QuestionDeleteRequestSchema(Schema):
     question_id = fields.Int()
-
-
-class QuestionDeleteResponseSchema(QuestionSchema):
-    ...
